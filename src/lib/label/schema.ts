@@ -35,7 +35,8 @@ export const blockSchema = v.variant('type', [
 		data: v.pipe(v.string(), v.maxLength(2000)),
 		ecc: v.optional(v.picklist(['L', 'M', 'Q', 'H'])),
 		module: v.optional(v.pipe(v.number(), v.integer(), v.minValue(1), v.maxValue(64))),
-		quiet: v.optional(v.pipe(v.number(), v.integer(), v.minValue(0), v.maxValue(8)))
+		quiet: v.optional(v.pipe(v.number(), v.integer(), v.minValue(0), v.maxValue(8))),
+		stretch: v.optional(v.boolean())
 	}),
 	v.object({
 		...base,

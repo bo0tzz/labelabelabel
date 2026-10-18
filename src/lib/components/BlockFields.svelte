@@ -28,9 +28,11 @@
 	const font = $derived(block.type === 'text' ? fonts.find((f) => f.id === block.font) : undefined);
 	const hasSymbols = $derived(!!font?.symbols);
 	const FIELDS = ['text', 'font', 'size', 'width', 'height', 'data', 'module'];
-	const issueFor = (field: string) => issues.find((i) => i.field === field)?.message;
+	const problems = $derived(issues.filter((i) => !i.info));
+	const notes = $derived(issues.filter((i) => i.info).map((i) => i.message));
+	const issueFor = (field: string) => problems.find((i) => i.field === field)?.message;
 	const general = $derived(
-		issues.filter((i) => !i.field || !FIELDS.includes(i.field)).map((i) => i.message)
+		problems.filter((i) => !i.field || !FIELDS.includes(i.field)).map((i) => i.message)
 	);
 
 	let dither = $state(false);
@@ -203,15 +205,27 @@
 				<option value="H">high</option>
 			</select>
 		</label>
-		<NumberField
-			label="Module (dots)"
-			bind:value={block.module}
-			min={1}
-			max={64}
-			integer
-			placeholder="fit"
-			error={issueFor('module')}
-		/>
+		{#if !block.stretch}
+			<NumberField
+				label="Module (dots)"
+				bind:value={block.module}
+				min={1}
+				max={64}
+				integer
+				placeholder="fit"
+				error={issueFor('module')}
+			/>
+		{/if}
+		<label
+			class="check"
+			title="Use all the room with modules of uneven size (e.g. 2 and 3 dots). Most scanners cope, but test it."
+		>
+			<input type="checkbox" bind:checked={block.stretch} />
+			Stretch to fill
+		</label>
+		{#each notes as note (note)}
+			<p class="muted wide note">{note}</p>
+		{/each}
 	{:else if block.type === 'bitmap'}
 		<div class="wide row">
 			<span class="muted">{block.w} × {block.h} dots</span>
@@ -326,8 +340,12 @@
 	.wide {
 		grid-column: 1 / -1;
 	}
-	p.error {
+	p.error,
+	p.note {
 		margin: 0;
+	}
+	p.note {
+		font-size: 0.8rem;
 	}
 	.text {
 		display: flex;

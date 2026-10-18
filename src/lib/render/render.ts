@@ -33,6 +33,8 @@ export interface RenderIssue {
 	blockId?: string;
 	field?: string;
 	message: string;
+	/** Not a problem, just something worth showing, like how a QR code was sized. */
+	info?: boolean;
 }
 
 export interface RenderedLabel {
@@ -272,24 +274,45 @@ function renderQr(block: QrBlock, box: Box, ctx: Context): Bitmap {
 	}
 	const n = modules.size;
 	const quiet = block.quiet ?? 2;
-	const fit = Math.min(
-		Math.floor(box.height / n),
-		box.width !== undefined ? Math.floor(box.width / (ctx.k * (n + quiet * 2))) : Infinity
+	// Largest size across the tape the box allows, in dots; along it the quiet zone counts too.
+	const room = Math.min(
+		box.height,
+		box.width !== undefined ? (box.width / ctx.k) * (n / (n + quiet * 2)) : Infinity
 	);
-	const module = block.module ?? fit;
-	if (module < 1) {
+	const fit = Math.floor(room / n);
+	const note = (message: string) =>
+		ctx.issues.push({ blockId: block.id, field: 'module', message, info: true });
+
+	let size: number;
+	if (block.stretch) {
+		size = Math.floor(room);
+		note(`${n} modules over ${size} dots, ${(size / n).toFixed(1)} dots each`);
+	} else {
+		const module = block.module ?? fit;
+		if (block.module && block.module > fit) {
+			ctx.issues.push({ blockId: block.id, field: 'module', message: 'QR code does not fit' });
+		}
+		size = module * n;
+		note(
+			`${n} modules, ${module} ${module === 1 ? 'dot' : 'dots'} each: ${size} of ${box.height} dots`
+		);
+	}
+	if (size < n) {
 		ctx.issues.push({ blockId: block.id, field: 'data', message: 'QR code does not fit' });
 		return createBitmap(0, box.height);
 	}
-	if (block.module && block.module > fit) {
-		ctx.issues.push({ blockId: block.id, field: 'module', message: 'QR code does not fit' });
-	}
-	const along = module * ctx.k;
-	const bitmap = createBitmap((n + quiet * 2) * along, box.height);
-	const top = offset(box.height - n * module, block.align);
+
+	// Module edges in dots; with a whole number of dots per module they are evenly spaced.
+	const across = (i: number) => Math.round((i * size) / n);
+	const along = (i: number) => Math.round((i * size * ctx.k) / n);
+	const bitmap = createBitmap(along(n + quiet * 2), box.height);
+	const top = offset(box.height - size, block.align);
 	for (let r = 0; r < n; r++) {
 		for (let c = 0; c < n; c++) {
-			if (modules.get(r, c)) fillRect(bitmap, (quiet + c) * along, top + r * module, along, module);
+			if (!modules.get(r, c)) continue;
+			const x = along(quiet + c);
+			const y = across(r);
+			fillRect(bitmap, x, top + y, along(quiet + c + 1) - x, across(r + 1) - y);
 		}
 	}
 	return bitmap;

@@ -78,6 +78,8 @@ export interface QrBlock extends BlockBase {
 	module?: number;
 	/** Quiet zone along the tape in modules. Across the tape the unprinted edge serves. */
 	quiet?: number;
+	/** Fill the space with modules of uneven whole-dot sizes instead of equal ones. */
+	stretch?: boolean;
 }
 
 export interface LineBlock extends BlockBase {

@@ -48,6 +48,7 @@
 		});
 	});
 	const blockIssues = (id: string) => rendered.issues.filter((i) => i.blockId === id);
+	const problems = $derived(rendered.issues.filter((i) => !i.info));
 
 	/** CSS pixels per dot; null fits the preview to the page. */
 	let zoom = $state<number | null>(null);
@@ -74,10 +75,10 @@
 		}
 	});
 	const problemIds = $derived([
-		...new Set(rendered.issues.flatMap((i) => (i.blockId ? [i.blockId] : [])))
+		...new Set(problems.flatMap((i) => (i.blockId ? [i.blockId] : [])))
 	]);
-	const lengthIssue = $derived(rendered.issues.find((i) => !i.blockId && i.field === 'length'));
-	const otherIssues = $derived(rendered.issues.filter((i) => !i.blockId && i.field !== 'length'));
+	const lengthIssue = $derived(problems.find((i) => !i.blockId && i.field === 'length'));
+	const otherIssues = $derived(problems.filter((i) => !i.blockId && i.field !== 'length'));
 
 	const TYPE_NAMES: Record<BlockType, string> = {
 		text: 'Text',
@@ -389,7 +390,9 @@
 								? `${cssFamily(block.font)}, system-ui`
 								: undefined}>{summary(block)}</span
 						>
-						{#if issues.length}<span class="warn" title={issues[0].message}>!</span>{/if}
+						{#if issues.some((i) => !i.info)}
+							<span class="warn" title={issues.find((i) => !i.info)?.message}>!</span>
+						{/if}
 					</button>
 					{#if !editor.free}
 						<button title="Move left" disabled={i === 0} onclick={() => editor.move(block.id, -1)}

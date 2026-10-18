@@ -84,6 +84,48 @@ describe('renderLabel', () => {
 		expect(result.blocks[0].width).toBe(63);
 	});
 
+	it('stretches QR codes over the whole height when asked', () => {
+		const data = 'https://example.com/42';
+		const plain = renderLabel(label([{ id: 'q', type: 'qr', data, quiet: 0 }]), media12, { fonts });
+		expect(plain.issues.find((i) => i.info)?.message).toBe(
+			'25 modules, 2 dots each: 50 of 70 dots'
+		);
+
+		const stretched = renderLabel(
+			label([{ id: 'q', type: 'qr', data, quiet: 0, stretch: true }]),
+			media12,
+			{ fonts }
+		);
+		const { bitmap } = stretched;
+		const rowHasInk = (y: number) =>
+			bitmap.data.slice(y * bitmap.width, (y + 1) * bitmap.width).includes(1);
+		// Finder patterns sit in the corners, so the first and last rows of the tape get ink.
+		expect(rowHasInk(0)).toBe(true);
+		expect(rowHasInk(69)).toBe(true);
+		expect(stretched.blocks[0].width).toBe(70);
+	});
+
+	it('stretches QR codes over the whole height when asked', () => {
+		const data = 'https://example.com/42';
+		const plain = renderLabel(label([{ id: 'q', type: 'qr', data, quiet: 0 }]), media12, { fonts });
+		expect(plain.issues.find((i) => i.info)?.message).toBe(
+			'25 modules, 2 dots each: 50 of 70 dots'
+		);
+
+		const stretched = renderLabel(
+			label([{ id: 'q', type: 'qr', data, quiet: 0, stretch: true }]),
+			media12,
+			{ fonts }
+		);
+		const { bitmap } = stretched;
+		const rowHasInk = (y: number) =>
+			bitmap.data.slice(y * bitmap.width, (y + 1) * bitmap.width).includes(1);
+		// Finder patterns sit in the corners, so the first and last rows of the tape get ink.
+		expect(rowHasInk(0)).toBe(true);
+		expect(rowHasInk(69)).toBe(true);
+		expect(stretched.blocks[0].width).toBe(70);
+	});
+
 	it('doubles widths along the tape in high resolution', () => {
 		const normal = renderLabel(label([{ id: 'q', type: 'qr', data: 'hello', quiet: 0 }]), media12, {
 			fonts
