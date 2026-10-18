@@ -11,7 +11,9 @@ RUN pnpm build && pnpm prune --prod
 
 FROM node:24-slim
 WORKDIR /app
-ENV NODE_ENV=production DATA_DIR=/data PORT=3000
+ENV NODE_ENV=production DATA_DIR=/data PORT=3000 BODY_SIZE_LIMIT=20M
+# Each falls back to the request's own values when a proxy doesn't send the header.
+ENV PROTOCOL_HEADER=x-forwarded-proto HOST_HEADER=x-forwarded-host
 COPY --from=build /app/package.json ./
 COPY --from=build /app/node_modules ./node_modules
 COPY --from=build /app/build ./build

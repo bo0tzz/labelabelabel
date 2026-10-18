@@ -23,8 +23,10 @@ docker run -p 3000:3000 -v labelabelabel:/data -e PRINTER_HOST=192.168.178.109 l
 | `DATA_DIR`          | `./data`  | SQLite database and uploaded fonts. `/data` in the image.                |
 | `FONTS_DIR`         | `./fonts` | Bundled fonts.                                                           |
 | `USER_HEADER`       |           | Header with the user name from a forward-auth proxy, e.g. `remote-user`. |
-| `PROTOCOL_HEADER`   |           | Set to `x-forwarded-proto` behind a TLS-terminating proxy.               |
-| `HOST_HEADER`       |           | Set to `x-forwarded-host` behind a proxy.                                |
+
+The image trusts `X-Forwarded-Proto` and `X-Forwarded-Host` from a reverse proxy, falling back
+to the request itself when they are absent. Override `PROTOCOL_HEADER`/`HOST_HEADER` if your
+proxy uses other headers.
 
 The app needs SNMP (UDP 161) and IPP (TCP 631) access to the printer. Both work across routed
 VLANs; a multus interface on the printer's VLAN is only needed for mDNS discovery, which is not
