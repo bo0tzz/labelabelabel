@@ -55,9 +55,14 @@ The printer protocol is Brother's
 
 ## Fonts
 
-Bundled fonts are under the SIL Open Font License; see the license file next to each font.
+Bundled fonts are under the SIL Open Font License, except Material Symbols (Apache 2.0); see the
+license file next to each font.
 
 - [Atkinson Hyperlegible Next](https://github.com/googlefonts/atkinson-hyperlegible-next)
+- [Barlow Condensed](https://github.com/jpt/barlow)
 - [Departure Mono](https://departuremono.com)
+- [JetBrains Mono](https://www.jetbrains.com/lp/mono/)
+- [Material Symbols](https://github.com/google/material-design-icons), reduced to the weight and
+  fill axes with `fonttools varLib.instancer ... GRAD=0 opsz=20`
 - [Schraubenkiste](http://www.catfonts.de/Schraubenkiste.html)
 - [Silkscreen](https://kottke.org/plus/type/silkscreen/)
