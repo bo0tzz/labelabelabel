@@ -1,9 +1,9 @@
 import { readFileSync } from 'node:fs';
-import { describe, expect, it } from 'vitest';
+import { beforeAll, describe, expect, it } from 'vitest';
 import { createBitmap } from '#lib/bitmap.js';
+import { initServerRaster } from '#lib/server/raster.js';
 import type { Label } from '#lib/label/types.js';
 import { getMedia } from '#lib/media.js';
-import { fillContours } from './fill.js';
 import { FontRegistry } from './fonts.js';
 import { decodeBitmapData, encodeBitmapData, renderLabel } from './render.js';
 
@@ -23,24 +23,7 @@ function ink(bitmap: { data: Uint8Array }) {
 	return bitmap.data.reduce((a, b) => a + b, 0);
 }
 
-describe('fillContours', () => {
-	it('fills exactly the pixels inside an axis-aligned square', () => {
-		const bitmap = createBitmap(10, 10);
-		fillContours(bitmap, [[2, 2, 7, 2, 7, 7, 2, 7]]);
-		expect(ink(bitmap)).toBe(25);
-		expect(bitmap.data[2 * 10 + 2]).toBe(1);
-		expect(bitmap.data[7 * 10 + 7]).toBe(0);
-	});
-
-	it('leaves holes with opposite winding empty', () => {
-		const bitmap = createBitmap(10, 10);
-		fillContours(bitmap, [
-			[0, 0, 10, 0, 10, 10, 0, 10],
-			[3, 3, 3, 7, 7, 7, 7, 3]
-		]);
-		expect(ink(bitmap)).toBe(100 - 16);
-	});
-});
+beforeAll(() => initServerRaster());
 
 describe('renderLabel', () => {
 	it('renders text to the printable height of the tape', () => {

@@ -11,8 +11,8 @@ import type {
 	TextBlock
 } from '#lib/label/types.js';
 import { dotsToMm, mmToDots, type MediaGeometry } from '#lib/media.js';
-import { fillContours, PathFlattener, type Contour } from './fill.js';
 import type { FontRegistry, LoadedFont, ShapedGlyph, ShapedRun, Variant } from './fonts.js';
+import { rasterize, rasterReady } from './raster.js';
 
 export interface RenderOptions {
 	fonts: FontRegistry;
@@ -289,53 +289,62 @@ function renderText(block: TextBlock, box: Box, ctx: Context): Bitmap {
 	const k = ctx.k;
 	const s = scale;
 	const oy = offset(box.height - (sideways ? W : T), block.align);
-	const flattener = new PathFlattener({ a: 0, b: 0, c: 0, d: 0, e: 0, f: 0 });
 	const variant = variantOf(block);
+	const paths: string[] = [];
 	for (const placement of layout.placements) {
 		const originU = Math.round(placement.u * s);
 		const baseline = Math.round(placement.baseline * s);
 		for (const g of placement.glyphs) {
+			const d = (g.font ?? font).path(g.gid, variant);
+			if (!d) continue;
 			const u = originU + g.x * s;
 			const v = baseline - g.y * s;
 			// Outline units per dot differ for glyphs from a fallback font.
 			const gs = s * (g.ratio ?? 1);
-			flattener.transform =
+			const m =
 				rotation === 90
-					? { a: 0, b: gs, c: k * gs, d: 0, e: k * (T - v), f: oy + u }
+					? [0, gs, k * gs, 0, k * (T - v), oy + u]
 					: rotation === 180
-						? { a: -k * gs, b: 0, c: 0, d: gs, e: k * (W - u), f: oy + T - v }
+						? [-k * gs, 0, 0, gs, k * (W - u), oy + T - v]
 						: rotation === 270
-							? { a: 0, b: -gs, c: -k * gs, d: 0, e: k * v, f: oy + W - u }
-							: { a: k * gs, b: 0, c: 0, d: -gs, e: k * u, f: oy + v };
-			(g.font ?? font).draw(g.gid, variant, flattener);
+							? [0, -gs, -k * gs, 0, k * v, oy + W - u]
+							: [k * gs, 0, 0, -gs, k * u, oy + v];
+			paths.push(`<path transform="matrix(${m.join(' ')})" d="${d}"/>`);
 		}
 	}
+	if (!paths.length || !rasterReady()) return createBitmap(0, box.height);
 
-	return contoursToBitmap(
-		flattener.contours,
-		Math.ceil((sideways ? T : W) * k),
-		box.height,
-		block.ink
-	);
+	// Render with room on both sides for ink that overhangs the advance, then trim to it.
+	const width = Math.ceil((sideways ? T : W) * k);
+	const margin = Math.ceil(px * k);
+	const svg =
+		`<svg xmlns="http://www.w3.org/2000/svg" width="${width + margin * 2}" height="${box.height}"` +
+		` viewBox="${-margin} 0 ${width + margin * 2} ${box.height}">${paths.join('')}</svg>`;
+	const image = rasterize(svg, block.ink);
+	let left = margin;
+	let right = margin + width;
+	for (let x = 0; x < image.width; x++) {
+		for (let y = 0; y < image.height; y++) {
+			if (!image.data[y * image.width + x]) continue;
+			left = Math.min(left, x);
+			right = Math.max(right, x + 1);
+			break;
+		}
+	}
+	const bitmap = createBitmap(right - left, box.height);
+	blit(bitmap, crop(image, left, right), 0, 0);
+	return bitmap;
 }
 
-/** Rasterizes contours into a bitmap at least `width` wide, widened to fit overhanging ink. */
-function contoursToBitmap(contours: Contour[], width: number, height: number, ink?: number) {
-	let minX = 0;
-	let maxX = width;
-	for (const c of contours) {
-		for (let i = 0; i < c.length; i += 2) {
-			minX = Math.min(minX, c[i]);
-			maxX = Math.max(maxX, c[i]);
-		}
+function crop(image: Bitmap, left: number, right: number): Bitmap {
+	const out = createBitmap(right - left, image.height);
+	for (let y = 0; y < image.height; y++) {
+		out.data.set(
+			image.data.subarray(y * image.width + left, y * image.width + right),
+			y * out.width
+		);
 	}
-	const left = Math.floor(minX);
-	if (left < 0) {
-		for (const c of contours) for (let i = 0; i < c.length; i += 2) c[i] -= left;
-	}
-	const bitmap = createBitmap(Math.ceil(maxX) - left, height);
-	fillContours(bitmap, contours, { threshold: ink });
-	return bitmap;
+	return out;
 }
 
 function renderQr(block: QrBlock, box: Box, ctx: Context): Bitmap {

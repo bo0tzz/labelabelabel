@@ -10,6 +10,9 @@ import { getMedia } from '../src/lib/media.js';
 import { FontRegistry } from '../src/lib/render/fonts.js';
 import { renderLabel } from '../src/lib/render/render.js';
 import { bitmapToPng } from '../src/lib/server/png.js';
+import { initServerRaster } from '../src/lib/server/raster.js';
+
+await initServerRaster();
 
 const fonts = new FontRegistry();
 const add = (id: string, path: string) => {

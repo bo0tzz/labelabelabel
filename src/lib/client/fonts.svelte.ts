@@ -1,10 +1,15 @@
+import wasm from '@resvg/resvg-wasm/index_bg.wasm?url';
+import { browser } from '$app/env';
 import type { Label } from '#lib/label/types.js';
+import { initRaster } from '#lib/render/raster.js';
 import { FontRegistry } from '#lib/render/fonts.js';
 
 export const fontRegistry = new FontRegistry();
 
-/** Bumped whenever a font finishes loading so previews re-render. */
+/** Bumped whenever a font or the rasterizer finishes loading so previews re-render. */
 export const fontState = $state({ version: 0 });
+
+if (browser) initRaster(fetch(wasm)).then(() => fontState.version++);
 
 // eslint-disable-next-line svelte/prefer-svelte-reactivity -- a load cache, not UI state
 const pending = new Map<string, Promise<void>>();
@@ -15,7 +20,7 @@ const cssFamilies = new Set<string>();
 /** Registers the font with the browser so it can be used in CSS, and returns the family name. */
 export function cssFamily(id: string): string {
 	const family = `label-${id}`;
-	if (!cssFamilies.has(id)) {
+	if (browser && !cssFamilies.has(id)) {
 		cssFamilies.add(id);
 		const face = new FontFace(family, `url(/fonts/${encodeURIComponent(id)})`);
 		document.fonts.add(face);

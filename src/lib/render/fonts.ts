@@ -1,15 +1,5 @@
 import * as hb from 'harfbuzzjs';
-import type { PathFlattener } from './fill.js';
 import { readLigatures } from './gsub.js';
-
-const drawFuncs = new hb.DrawFuncs();
-drawFuncs.setMoveToFunc((x, y, p) => (p as PathFlattener).moveTo(x, y));
-drawFuncs.setLineToFunc((x, y, p) => (p as PathFlattener).lineTo(x, y));
-drawFuncs.setQuadraticToFunc((cx, cy, x, y, p) => (p as PathFlattener).quadTo(cx, cy, x, y));
-drawFuncs.setCubicToFunc((c1x, c1y, c2x, c2y, x, y, p) =>
-	(p as PathFlattener).cubicTo(c1x, c1y, c2x, c2y, x, y)
-);
-drawFuncs.setClosePathFunc((p) => (p as PathFlattener).close());
 
 /** Settings of a variable font's axes. */
 export interface Variant {
@@ -122,9 +112,9 @@ export class LoadedFont {
 		return this.font(variant).glyphExtents(gid);
 	}
 
-	draw(gid: number, variant: Variant | undefined, flattener: PathFlattener) {
-		this.font(variant).drawGlyph(gid, drawFuncs, flattener);
-		flattener.close();
+	/** Outline as SVG path data in font units, y up. */
+	path(gid: number, variant?: Variant): string {
+		return this.font(variant).glyphToPath(gid);
 	}
 
 	/**
