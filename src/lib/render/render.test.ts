@@ -165,6 +165,17 @@ describe('renderLabel', () => {
 		expect(bottomHeavy(down)).toBe(false);
 	});
 
+	it('runs text across the tape in portrait', () => {
+		const doc = label([{ id: 't', type: 'text', text: 'ABCDEF', font: 'sans' }]);
+		const portrait = renderLabel({ ...doc, orientation: 'portrait' }, media12, { fonts });
+		const turned = renderLabel(
+			label([{ id: 't', type: 'text', text: 'ABCDEF', font: 'sans', rotate: 270 }]),
+			media12,
+			{ fonts }
+		);
+		expect(portrait.bitmap.data).toEqual(turned.bitmap.data);
+	});
+
 	it('warns when lines get too small to read', () => {
 		const text = Array.from({ length: 20 }, (_, i) => `line ${i}`).join('\n');
 		const result = renderLabel(label([{ id: 't', type: 'text', text, font: 'sans' }]), media12, {

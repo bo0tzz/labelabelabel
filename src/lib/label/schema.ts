@@ -57,6 +57,7 @@ export const labelSchema = v.object({
 	v: v.literal(1),
 	media: v.object({ id: v.string(), tape: v.optional(v.string()), text: v.optional(v.string()) }),
 	layout: v.optional(v.picklist(['row', 'free'])),
+	orientation: v.optional(v.literal('portrait')),
 	highRes: v.optional(v.boolean()),
 	length: v.optional(mm),
 	padding: v.optional(mm),

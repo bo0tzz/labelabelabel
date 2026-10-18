@@ -357,6 +357,7 @@
 		onreorder={(id, index) => editor.reorder(id, index)}
 		onnudge={editor.free ? (dx, dy) => editor.nudge(dx, dy, rendered.dpi) : undefined}
 		fixedScale={zoom ?? undefined}
+		portrait={editor.doc.orientation === 'portrait'}
 		{draw}
 		ondraw={(id, data) => editor.setDrawing(id, data)}
 	/>
@@ -402,6 +403,7 @@
 						fonts={fonts.current ?? []}
 						{issues}
 						free={editor.free}
+						portrait={editor.doc.orientation === 'portrait'}
 					/>
 				{/if}
 			</div>
@@ -429,6 +431,17 @@
 				onpick={(option) => editor.setMedia(option.media)}
 			/>
 		</div>
+		<label>
+			Orientation
+			<select
+				value={editor.doc.orientation ?? 'landscape'}
+				onchange={(e) =>
+					(editor.doc.orientation = e.currentTarget.value === 'portrait' ? 'portrait' : undefined)}
+			>
+				<option value="landscape">landscape</option>
+				<option value="portrait">portrait</option>
+			</select>
+		</label>
 		<label>
 			Layout
 			<select

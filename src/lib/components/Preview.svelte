@@ -40,6 +40,8 @@
 		draw?: { block: BitmapBlock; erase: boolean; brush: number } | null;
 		/** A finished stroke: the drawing's new data. */
 		ondraw?: (id: string, data: string) => void;
+		/** Show the tape running down the page, turned 90° clockwise. */
+		portrait?: boolean;
 	}
 
 	let {
@@ -59,10 +61,14 @@
 		maxHeight = 220,
 		fixedScale,
 		draw = null,
-		ondraw
+		ondraw,
+		portrait = false
 	}: Props = $props();
 
+	const MAX_PORTRAIT_HEIGHT = 640;
+
 	let canvas: HTMLCanvasElement | undefined = $state();
+	let frame: HTMLDivElement | undefined = $state();
 	let tapeElement: HTMLDivElement | undefined = $state();
 	let container: HTMLDivElement | undefined = $state();
 	let containerWidth = $state(0);
@@ -79,13 +85,21 @@
 		fixedScale ??
 			Math.max(
 				1,
-				Math.min(
-					maxScale,
-					Math.floor(maxHeight / tapeDots),
-					Math.floor(containerWidth / (length / k))
-				)
+				portrait
+					? Math.min(
+							maxScale,
+							Math.floor(containerWidth / tapeDots),
+							Math.floor(MAX_PORTRAIT_HEIGHT / (length / k))
+						)
+					: Math.min(
+							maxScale,
+							Math.floor(maxHeight / tapeDots),
+							Math.floor(containerWidth / (length / k))
+						)
 			)
 	);
+	const lengthCss = $derived((length / k) * scale);
+	const tapeCss = $derived(tapeDots * scale);
 	const interactive = $derived(!!onselect);
 	const boxes = $derived(rendered.blocks.filter((b) => b.width > 0 && b.height > 0));
 
@@ -197,8 +211,10 @@
 
 	function pointermove(event: PointerEvent) {
 		if (!drag) return;
-		const dxCss = event.clientX - drag.pointerX;
-		const dyCss = event.clientY - drag.pointerY;
+		const [dxCss, dyCss] = deltaToLocal(
+			event.clientX - drag.pointerX,
+			event.clientY - drag.pointerY
+		);
 		if (!drag.moved) {
 			if (Math.hypot(dxCss, dyCss) < 4) return;
 			drag.moved = true;
@@ -289,11 +305,22 @@
 	} | null = null;
 
 	/** Pointer position in the drawing's pixels. */
+	/** Screen position to CSS pixels in the (possibly turned) tape element. */
+	function toLocal(clientX: number, clientY: number): [number, number] {
+		const rect = frame!.getBoundingClientRect();
+		const sx = clientX - rect.left;
+		const sy = clientY - rect.top;
+		return portrait ? [sy, tapeCss - sx] : [sx, sy];
+	}
+
+	/** A movement on screen as a movement in the tape element. */
+	function deltaToLocal(dx: number, dy: number): [number, number] {
+		return portrait ? [dy, -dx] : [dx, dy];
+	}
+
 	function drawingPoint(event: PointerEvent, left: number, imageTop: number): [number, number] {
-		const rect = tapeElement!.getBoundingClientRect();
-		const x = ((event.clientX - rect.left) / scale) * k - feed - left;
-		const y = (event.clientY - rect.top) / scale - top - imageTop;
-		return [x, y];
+		const [lx, ly] = toLocal(event.clientX, event.clientY);
+		return [(lx / scale) * k - feed - left, ly / scale - top - imageTop];
 	}
 
 	function stamp([cx, cy]: [number, number]) {
@@ -333,6 +360,13 @@
 	}
 
 	let pan: { pointerId: number; x: number; scroll: number } | null = null;
+
+	/** Safari starts selection and scroll gestures from touch events, so those are cancelled. */
+	function captureTouch(node: HTMLElement) {
+		const cancel = (event: TouchEvent) => event.preventDefault();
+		node.addEventListener('touchstart', cancel, { passive: false });
+		return () => node.removeEventListener('touchstart', cancel);
+	}
 
 	function drawDown(event: PointerEvent) {
 		if (!draw || !canvas) return;
@@ -389,12 +423,19 @@
 	function keydown(event: KeyboardEvent) {
 		if (!onnudge || !selectedId) return;
 		const step = event.shiftKey ? 10 : 1;
-		const moves: Record<string, [number, number]> = {
-			ArrowLeft: [-step * k, 0],
-			ArrowRight: [step * k, 0],
-			ArrowUp: [0, -step],
-			ArrowDown: [0, step]
-		};
+		const moves: Record<string, [number, number]> = portrait
+			? {
+					ArrowLeft: [0, step],
+					ArrowRight: [0, -step],
+					ArrowUp: [-step * k, 0],
+					ArrowDown: [step * k, 0]
+				}
+			: {
+					ArrowLeft: [-step * k, 0],
+					ArrowRight: [step * k, 0],
+					ArrowUp: [0, -step],
+					ArrowDown: [0, step]
+				};
 		const move = moves[event.key];
 		const layout = boxes.find((b) => b.id === selectedId);
 		if (!move || !layout) return;
@@ -405,77 +446,87 @@
 </script>
 
 <div class="preview" bind:this={container} bind:clientWidth={containerWidth}>
-	<!-- svelte-ignore a11y_no_noninteractive_tabindex -->
 	<div
-		bind:this={tapeElement}
-		class="tape"
-		class:interactive
-		style:width="{(length / k) * scale}px"
-		style:height="{tapeDots * scale}px"
-		tabindex={interactive ? 0 : undefined}
-		role={interactive ? 'application' : undefined}
-		aria-label={interactive ? 'Label preview' : undefined}
-		onkeydown={keydown}
+		class="frame"
+		bind:this={frame}
+		style:width="{portrait ? tapeCss : lengthCss}px"
+		style:height="{portrait ? lengthCss : tapeCss}px"
 	>
-		<canvas bind:this={canvas}></canvas>
-		{#if draw}
-			{#each boxes.filter((b) => b.id === draw.block.id) as layout (layout.id)}
+		<!-- svelte-ignore a11y_no_noninteractive_tabindex -->
+		<div
+			bind:this={tapeElement}
+			class="tape"
+			class:interactive
+			class:portrait
+			style:left={portrait ? `${tapeCss}px` : undefined}
+			style:width="{lengthCss}px"
+			style:height="{tapeCss}px"
+			tabindex={interactive ? 0 : undefined}
+			role={interactive ? 'application' : undefined}
+			aria-label={interactive ? 'Label preview' : undefined}
+			onkeydown={keydown}
+		>
+			<canvas bind:this={canvas}></canvas>
+			{#if draw}
+				{#each boxes.filter((b) => b.id === draw.block.id) as layout (layout.id)}
+					<div
+						class="box selected drawing"
+						style:left="{cssX(feed + layout.x)}px"
+						style:width="{cssX(layout.width)}px"
+						style:top="{cssY(top + layout.y)}px"
+						style:height="{cssY(layout.height)}px"
+					></div>
+				{/each}
 				<div
-					class="box selected drawing"
-					style:left="{cssX(feed + layout.x)}px"
-					style:width="{cssX(layout.width)}px"
-					style:top="{cssY(top + layout.y)}px"
-					style:height="{cssY(layout.height)}px"
-				></div>
-			{/each}
-			<div
-				class="surface"
-				onpointerdown={drawDown}
-				onpointermove={drawMove}
-				onpointerup={drawUp}
-				onpointercancel={drawUp}
-				role="presentation"
-			></div>
-		{:else if interactive}
-			{#each boxes as layout (layout.id)}
-				{@const shown = !free && preview?.id === layout.id ? preview.box : layout}
-				<div
-					class="box"
-					class:selected={layout.id === selectedId}
-					class:problem={problemIds.includes(layout.id)}
-					class:free
-					class:dragging={!free && preview?.id === layout.id}
-					style:left="{cssX(feed + shown.x)}px"
-					style:width="{cssX(shown.width)}px"
-					style:top="{cssY(top + shown.y)}px"
-					style:height="{cssY(shown.height)}px"
-					onpointerdown={(e) => pointerdown(e, layout.id, 'move')}
-					onpointermove={pointermove}
-					onpointerup={pointerup}
-					onpointercancel={pointerup}
+					class="surface"
+					{@attach captureTouch}
+					onpointerdown={drawDown}
+					onpointermove={drawMove}
+					onpointerup={drawUp}
+					onpointercancel={drawUp}
 					role="presentation"
-				>
-					{#if free && layout.id === selectedId}
-						{#each ['nw', 'ne', 'sw', 'se'] as const as handle (handle)}
-							<span
-								class="handle {handle}"
-								onpointerdown={(e) => pointerdown(e, layout.id, handle)}
-								onpointermove={pointermove}
-								onpointerup={pointerup}
-								onpointercancel={pointerup}
-								role="presentation"
-							></span>
-						{/each}
-					{/if}
-				</div>
-			{/each}
-			{#each guides.x as x (x)}
-				<div class="guide vertical" style:left="{cssX(feed + x)}px"></div>
-			{/each}
-			{#each guides.y as y (y)}
-				<div class="guide horizontal" style:top="{cssY(top + y)}px"></div>
-			{/each}
-		{/if}
+				></div>
+			{:else if interactive}
+				{#each boxes as layout (layout.id)}
+					{@const shown = !free && preview?.id === layout.id ? preview.box : layout}
+					<div
+						class="box"
+						class:selected={layout.id === selectedId}
+						class:problem={problemIds.includes(layout.id)}
+						class:free
+						class:dragging={!free && preview?.id === layout.id}
+						style:left="{cssX(feed + shown.x)}px"
+						style:width="{cssX(shown.width)}px"
+						style:top="{cssY(top + shown.y)}px"
+						style:height="{cssY(shown.height)}px"
+						onpointerdown={(e) => pointerdown(e, layout.id, 'move')}
+						onpointermove={pointermove}
+						onpointerup={pointerup}
+						onpointercancel={pointerup}
+						role="presentation"
+					>
+						{#if free && layout.id === selectedId}
+							{#each ['nw', 'ne', 'sw', 'se'] as const as handle (handle)}
+								<span
+									class="handle {handle}"
+									onpointerdown={(e) => pointerdown(e, layout.id, handle)}
+									onpointermove={pointermove}
+									onpointerup={pointerup}
+									onpointercancel={pointerup}
+									role="presentation"
+								></span>
+							{/each}
+						{/if}
+					</div>
+				{/each}
+				{#each guides.x as x (x)}
+					<div class="guide vertical" style:left="{cssX(feed + x)}px"></div>
+				{/each}
+				{#each guides.y as y (y)}
+					<div class="guide horizontal" style:top="{cssY(top + y)}px"></div>
+				{/each}
+			{/if}
+		</div>
 	</div>
 </div>
 
@@ -483,12 +534,24 @@
 	.preview {
 		overflow-x: auto;
 		padding: 8px 8px 8px 0;
+		-webkit-user-select: none;
+		user-select: none;
+		-webkit-touch-callout: none;
+		-webkit-tap-highlight-color: transparent;
+	}
+	.frame {
+		position: relative;
 	}
 	.tape {
 		position: relative;
 		box-shadow: 0 0 0 1px var(--border);
 		outline: none;
-		user-select: none;
+	}
+	.tape.portrait {
+		position: absolute;
+		top: 0;
+		transform-origin: 0 0;
+		transform: rotate(90deg);
 	}
 	.tape.interactive:focus-visible {
 		box-shadow: 0 0 0 2px var(--accent);

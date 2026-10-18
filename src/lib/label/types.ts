@@ -9,6 +9,8 @@ export interface Label {
 	v: 1;
 	media: MediaRef;
 	layout?: 'row' | 'free';
+	/** Portrait: designed upright with the tape running down, so text runs across the tape. */
+	orientation?: 'portrait';
 	/** 180×360 dpi mode: twice the resolution along the tape. */
 	highRes?: boolean;
 	/** Length of the cut piece; omitted for automatic. */

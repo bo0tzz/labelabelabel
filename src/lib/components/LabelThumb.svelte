@@ -25,4 +25,11 @@
 	});
 </script>
 
-<Preview {rendered} {media} tape={doc.media.tape} text={doc.media.text} fixedScale={scale} />
+<Preview
+	{rendered}
+	{media}
+	tape={doc.media.tape}
+	text={doc.media.text}
+	fixedScale={scale}
+	portrait={doc.orientation === 'portrait'}
+/>

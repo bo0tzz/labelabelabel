@@ -46,6 +46,7 @@ export interface RenderedLabel {
 }
 
 interface Context extends RenderOptions {
+	portrait: boolean;
 	dpiAcross: number;
 	dpiAlong: number;
 	/** Dots along the tape per dot across it. */
@@ -102,7 +103,7 @@ function renderText(block: TextBlock, box: Box, ctx: Context): Bitmap {
 	const advance = Math.max(0, ...runs.map((r) => r.advance));
 
 	// Room for the text in its own frame: along its lines and across them, in dots.
-	const rotation = block.rotate ?? 0;
+	const rotation = ((block.rotate ?? 0) + (ctx.portrait ? 270 : 0)) % 360;
 	const sideways = rotation === 90 || rotation === 270;
 	const boxWidth = box.width !== undefined ? box.width / ctx.k : undefined;
 	const roomAlong = sideways ? box.height : boxWidth;
@@ -400,7 +401,14 @@ export function renderLabel(
 ): RenderedLabel {
 	const dpiAcross = media.dpi;
 	const dpiAlong = label.highRes && media.highRes ? dpiAcross * 2 : dpiAcross;
-	const ctx: Context = { ...options, dpiAcross, dpiAlong, k: dpiAlong / dpiAcross, issues: [] };
+	const ctx: Context = {
+		...options,
+		portrait: label.orientation === 'portrait',
+		dpiAcross,
+		dpiAlong,
+		k: dpiAlong / dpiAcross,
+		issues: []
+	};
 	const height = media.dots;
 
 	const free = label.layout === 'free';

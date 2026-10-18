@@ -12,9 +12,14 @@
 		fonts: FontEntry[];
 		issues: RenderIssue[];
 		free: boolean;
+		/** Values are stored along/across the tape; in portrait those show as height/width. */
+		portrait?: boolean;
 	}
 
-	let { block = $bindable(), fonts, issues, free }: Props = $props();
+	let { block = $bindable(), fonts, issues, free, portrait = false }: Props = $props();
+
+	const alongLabel = $derived(portrait ? 'Height (mm)' : 'Width (mm)');
+	const acrossLabel = $derived(portrait ? 'Width (mm)' : 'Height (mm)');
 
 	let textarea: HTMLTextAreaElement | undefined = $state();
 	let picker = $state(false);
@@ -205,7 +210,7 @@
 			<label class="check"><input type="checkbox" bind:checked={dither} /> Dither</label>
 		</div>
 		<NumberField
-			label="Width (mm)"
+			label={alongLabel}
 			bind:value={drawingWidthMm, setDrawingWidth}
 			min={0.5}
 			max={1000}
@@ -230,7 +235,7 @@
 		/>
 		{#if !free && block.direction !== 'along'}
 			<NumberField
-				label="Height (%)"
+				label={portrait ? 'Width (%)' : 'Height (%)'}
 				bind:value={block.extent}
 				min={0}
 				max={100}
@@ -242,7 +247,7 @@
 
 	{#if free && block.type !== 'space'}
 		<NumberField
-			label="X (mm)"
+			label={portrait ? 'From top (mm)' : 'X (mm)'}
 			bind:value={block.x}
 			step={0.5}
 			min={-1000}
@@ -250,7 +255,7 @@
 			placeholder="0"
 		/>
 		<NumberField
-			label="Y (mm)"
+			label={portrait ? 'From right (mm)' : 'Y (mm)'}
 			bind:value={block.y}
 			step={0.5}
 			min={-1000}
@@ -260,7 +265,7 @@
 	{/if}
 	{#if block.type !== 'bitmap'}
 		<NumberField
-			label="Width (mm)"
+			label={alongLabel}
 			bind:value={block.width}
 			min={0}
 			max={1000}
@@ -271,7 +276,7 @@
 	{/if}
 	{#if free && block.type !== 'space' && block.type !== 'bitmap'}
 		<NumberField
-			label="Height (mm)"
+			label={acrossLabel}
 			bind:value={block.height}
 			min={0}
 			max={1000}
@@ -282,11 +287,11 @@
 	{/if}
 	{#if block.type !== 'space'}
 		<label>
-			Vertical
+			{portrait ? 'Horizontal' : 'Vertical'}
 			<select bind:value={block.align}>
-				<option value="start">top</option>
+				<option value="start">{portrait ? 'right' : 'top'}</option>
 				<option value={undefined}>middle</option>
-				<option value="end">bottom</option>
+				<option value="end">{portrait ? 'left' : 'bottom'}</option>
 			</select>
 		</label>
 	{/if}
