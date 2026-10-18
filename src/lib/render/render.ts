@@ -112,26 +112,39 @@ function layoutLines(runs: ShapedRun[], font: LoadedFont, block: TextBlock): Tex
 	};
 }
 
-/** Each glyph upright under the previous one; lines become columns from left to right. */
+/**
+ * Each glyph upright under the previous one, spaced by their ink so tall and short letters
+ * leave the same gap. Lines become columns from left to right.
+ */
 function layoutStacked(runs: ShapedRun[], font: LoadedFont, block: TextBlock): TextLayout {
-	const step = (font.ascender - font.descender) * (block.lineHeight ?? 1);
-	const advances = runs.map((run) => run.glyphs.map((g) => font.advance(g.gid, block.weight)));
-	const column = Math.max(0, ...advances.flat());
-	const gap = column * 0.25;
-	const longest = Math.max(1, ...runs.map((r) => r.glyphs.length));
+	const spacing = block.lineHeight ?? 1;
+	const gap = font.upem * 0.12 * spacing;
+	const space = font.upem * 0.4 * spacing;
+	const extents = runs.map((run) => run.glyphs.map((g) => font.extents(g.gid, block.weight)));
+	const column = Math.max(0, ...extents.flat().map((e) => e?.width ?? 0));
+	const columnGap = column * 0.3;
 	const placements: Placement[] = [];
+	let height = 0;
 	runs.forEach((run, c) => {
+		let cursor = 0;
 		run.glyphs.forEach((g, j) => {
+			const e = extents[c][j];
+			if (!e || e.height === 0) {
+				cursor += space;
+				return;
+			}
 			placements.push({
-				u: c * (column + gap) + (column - advances[c][j]) / 2,
-				baseline: font.ascender + j * step,
+				u: c * (column + columnGap) + (column - e.width) / 2 - e.xBearing,
+				baseline: cursor + e.yBearing,
 				glyphs: [{ gid: g.gid, x: 0, y: 0 }]
 			});
+			cursor += -e.height + gap;
+			height = Math.max(height, cursor - gap);
 		});
 	});
 	return {
-		width: runs.length * column + (runs.length - 1) * gap,
-		height: (longest - 1) * step + font.ascender - font.descender,
+		width: runs.length * column + Math.max(0, runs.length - 1) * columnGap,
+		height,
 		placements
 	};
 }

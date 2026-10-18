@@ -93,8 +93,9 @@ export class LoadedFont {
 		return { glyphs, advance: x, missing: [...missing] };
 	}
 
-	advance(gid: number, weight?: number): number {
-		return this.font(weight).glyphHAdvance(gid);
+	/** Ink box of a glyph in font units, y up; undefined for glyphs without ink. */
+	extents(gid: number, weight?: number) {
+		return this.font(weight).glyphExtents(gid);
 	}
 
 	draw(gid: number, weight: number | undefined, flattener: PathFlattener) {
