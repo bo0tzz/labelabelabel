@@ -6,11 +6,14 @@
 	const fonts = listFonts();
 	let sample = $state('Label 123');
 
-	function sampleLabel(font: string): Label {
+	/** The emoji font has no letters, so it gets a sample of its own. */
+	const EMOJI_SAMPLE = '📦 🔧 💡';
+
+	function sampleLabel(font: string, text = sample): Label {
 		return {
 			v: 1,
 			media: { id: 'tze-12' },
-			blocks: [{ id: 's', type: 'text', text: sample, font }]
+			blocks: [{ id: 's', type: 'text', text, font }]
 		};
 	}
 
@@ -54,7 +57,7 @@
 				<button onclick={() => remove(font.id, font.name)}>Delete</button>
 			{/if}
 		</div>
-		<LabelThumb doc={sampleLabel(font.id)} scale={1} />
+		<LabelThumb doc={sampleLabel(font.id, font.fallback ? EMOJI_SAMPLE : sample)} scale={1} />
 	</section>
 {/each}
 

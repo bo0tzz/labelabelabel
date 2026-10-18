@@ -54,7 +54,9 @@
 	{#if printer}
 		<p>
 			<strong>{printer.name}</strong>
-			<span class="muted">{printer.model}</span>
+			{#if !printer.model.includes(printer.name)}
+				<span class="muted">{printer.model}</span>
+			{/if}
 		</p>
 		<p class:bad={!printer.status.online || printer.status.errors.length > 0}>{stateText}</p>
 		{#if media}

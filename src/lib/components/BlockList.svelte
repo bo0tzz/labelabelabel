@@ -133,7 +133,7 @@
 	}
 	.summary .type {
 		color: var(--muted);
-		width: 3.5em;
+		width: 4.5em;
 		flex-shrink: 0;
 	}
 	.summary .text {
