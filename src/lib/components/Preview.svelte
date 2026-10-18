@@ -67,7 +67,8 @@
 	let frame: HTMLDivElement | undefined = $state();
 	let tapeElement: HTMLDivElement | undefined = $state();
 	let container: HTMLDivElement | undefined = $state();
-	let containerWidth = $state(0);
+	let contentRect: DOMRectReadOnly | undefined = $state();
+	const containerWidth = $derived(contentRect?.width ?? 0);
 
 	const k = $derived(rendered.dpi.along / rendered.dpi.across);
 	const tapeDots = $derived(mmToDots(media.widthMm, media.dpi));
@@ -76,24 +77,18 @@
 	const length = $derived(
 		Math.max(rendered.bitmap.width + feed * 2, mmToDots(rendered.tapeMm, rendered.dpi.along))
 	);
-	// Whole CSS pixels per dot keep the dot grid even.
-	const scale = $derived(
-		fixedScale ??
-			Math.max(
-				1,
-				portrait
-					? Math.min(
-							maxScale,
-							Math.floor(containerWidth / tapeDots),
-							Math.floor(MAX_PORTRAIT_HEIGHT / (length / k))
-						)
-					: Math.min(
-							maxScale,
-							Math.floor(maxHeight / tapeDots),
-							Math.floor(containerWidth / (length / k))
-						)
-			)
-	);
+	// Whole CSS pixels per dot keep the dot grid even. A label longer than the page is shrunk
+	// to fit instead; in portrait it runs down the page, which scrolls.
+	const scale = $derived.by(() => {
+		if (fixedScale) return fixedScale;
+		if (portrait) {
+			const fit = Math.min(maxScale, containerWidth / tapeDots, MAX_PORTRAIT_HEIGHT / (length / k));
+			return Math.max(1, Math.floor(fit));
+		}
+		if (!containerWidth) return 1;
+		const fit = Math.min(maxScale, maxHeight / tapeDots, containerWidth / (length / k));
+		return fit >= 1 ? Math.floor(fit) : fit;
+	});
 	const lengthCss = $derived((length / k) * scale);
 	const tapeCss = $derived(tapeDots * scale);
 	const interactive = $derived(!!onselect);
@@ -443,7 +438,7 @@
 	}
 </script>
 
-<div class="preview" bind:this={container} bind:clientWidth={containerWidth}>
+<div class="preview" bind:this={container} bind:contentRect>
 	<div
 		class="frame"
 		bind:this={frame}
@@ -464,7 +459,7 @@
 			aria-label={interactive ? 'Label preview' : undefined}
 			onkeydown={keydown}
 		>
-			<canvas bind:this={canvas}></canvas>
+			<canvas bind:this={canvas} class:shrunk={scale < 1}></canvas>
 			{#if draw}
 				<!-- Only the drawing takes touches, so the rest of the preview scrolls as usual. -->
 				{#each boxes.filter((b) => b.id === draw.block.id) as layout (layout.id)}
@@ -557,6 +552,9 @@
 		width: 100%;
 		height: 100%;
 		image-rendering: pixelated;
+	}
+	canvas.shrunk {
+		image-rendering: auto;
 	}
 	.box {
 		position: absolute;
