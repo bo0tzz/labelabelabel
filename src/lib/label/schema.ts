@@ -24,6 +24,7 @@ export const blockSchema = v.variant('type', [
 		weight: v.optional(v.number()),
 		textAlign: align,
 		rotate: v.optional(v.picklist([0, 90, 180, 270])),
+		stack: v.optional(v.boolean()),
 		lineHeight: v.optional(v.pipe(v.number(), v.minValue(0.5), v.maxValue(3))),
 		ink: v.optional(v.pipe(v.number(), v.minValue(0.05), v.maxValue(0.95)))
 	}),

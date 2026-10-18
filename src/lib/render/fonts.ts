@@ -93,6 +93,10 @@ export class LoadedFont {
 		return { glyphs, advance: x, missing: [...missing] };
 	}
 
+	advance(gid: number, weight?: number): number {
+		return this.font(weight).glyphHAdvance(gid);
+	}
+
 	draw(gid: number, weight: number | undefined, flattener: PathFlattener) {
 		this.font(weight).drawGlyph(gid, drawFuncs, flattener);
 		flattener.close();

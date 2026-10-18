@@ -12,7 +12,7 @@ import type {
 } from '#lib/label/types.js';
 import { dotsToMm, mmToDots, type MediaGeometry } from '#lib/media.js';
 import { fillContours, PathFlattener, type Contour } from './fill.js';
-import type { FontRegistry } from './fonts.js';
+import type { FontRegistry, LoadedFont, ShapedGlyph, ShapedRun } from './fonts.js';
 
 export interface RenderOptions {
 	fonts: FontRegistry;
@@ -74,6 +74,68 @@ function offset(free: number, align: Align | undefined, fallback: Align = 'cente
 /** Em size in dots below which outline fonts stop being readable at 180 dpi. */
 const MIN_LEGIBLE_EM = 7;
 
+/** A group of glyphs placed in the text's own frame, in font units: u to the right, v down. */
+interface Placement {
+	u: number;
+	baseline: number;
+	glyphs: ShapedGlyph[];
+}
+
+interface TextLayout {
+	placements: Placement[];
+	width: number;
+	height: number;
+}
+
+/** Lines one under the other, as text is normally written. */
+function layoutLines(runs: ShapedRun[], font: LoadedFont, block: TextBlock): TextLayout {
+	const lineUnits = (font.ascender - font.descender) * (block.lineHeight ?? 1);
+	let above = font.ascender;
+	let below = -font.descender;
+	if (block.tight) {
+		const first = font.inkExtents(runs[0], block.weight);
+		const last = font.inkExtents(runs[runs.length - 1], block.weight);
+		if (first && last) {
+			above = first.top;
+			below = -last.bottom;
+		}
+	}
+	const width = Math.max(0, ...runs.map((r) => r.advance));
+	return {
+		width,
+		height: above + below + (runs.length - 1) * lineUnits,
+		placements: runs.map((run, i) => ({
+			u: offset(width - run.advance, block.textAlign, 'start'),
+			baseline: above + i * lineUnits,
+			glyphs: run.glyphs
+		}))
+	};
+}
+
+/** Each glyph upright under the previous one; lines become columns from left to right. */
+function layoutStacked(runs: ShapedRun[], font: LoadedFont, block: TextBlock): TextLayout {
+	const step = (font.ascender - font.descender) * (block.lineHeight ?? 1);
+	const advances = runs.map((run) => run.glyphs.map((g) => font.advance(g.gid, block.weight)));
+	const column = Math.max(0, ...advances.flat());
+	const gap = column * 0.25;
+	const longest = Math.max(1, ...runs.map((r) => r.glyphs.length));
+	const placements: Placement[] = [];
+	runs.forEach((run, c) => {
+		run.glyphs.forEach((g, j) => {
+			placements.push({
+				u: c * (column + gap) + (column - advances[c][j]) / 2,
+				baseline: font.ascender + j * step,
+				glyphs: [{ gid: g.gid, x: 0, y: 0 }]
+			});
+		});
+	});
+	return {
+		width: runs.length * column + (runs.length - 1) * gap,
+		height: (longest - 1) * step + font.ascender - font.descender,
+		placements
+	};
+}
+
 function renderText(block: TextBlock, box: Box, ctx: Context): Bitmap {
 	const issue = (message: string, field?: string) =>
 		ctx.issues.push({ blockId: block.id, field, message });
@@ -86,74 +148,61 @@ function renderText(block: TextBlock, box: Box, ctx: Context): Bitmap {
 	const runs = lines.map((line) => font.shape(line, block.weight));
 	const missing = [...new Set(runs.flatMap((r) => r.missing))];
 	if (missing.length) issue(`${font.name} has no ${missing.join(' ')}`, 'text');
-	const lineUnits = (font.ascender - font.descender) * (block.lineHeight ?? 1);
 
-	// Space above the first baseline and below the last one, in font units.
-	let above = font.ascender;
-	let below = -font.descender;
-	if (block.tight) {
-		const first = font.inkExtents(runs[0], block.weight);
-		const last = font.inkExtents(runs[runs.length - 1], block.weight);
-		if (first && last) {
-			above = first.top;
-			below = -last.bottom;
-		}
-	}
-	const totalUnits = above + below + (lines.length - 1) * lineUnits;
-	const advance = Math.max(0, ...runs.map((r) => r.advance));
+	const stacked = block.stack ?? ctx.portrait;
+	const layout = stacked ? layoutStacked(runs, font, block) : layoutLines(runs, font, block);
 
-	// Room for the text in its own frame: along its lines and across them, in dots.
+	// Rotation is relative to the view; portrait views the tape turned a quarter.
 	const rotation = ((block.rotate ?? 0) + (ctx.portrait ? 270 : 0)) % 360;
 	const sideways = rotation === 90 || rotation === 270;
+	// Room in the text's frame, in dots: to the right (u) and down (v).
 	const boxWidth = box.width !== undefined ? box.width / ctx.k : undefined;
-	const roomAlong = sideways ? box.height : boxWidth;
-	const roomAcross = sideways ? boxWidth : box.height;
+	const roomU = sideways ? box.height : boxWidth;
+	const roomV = sideways ? boxWidth : box.height;
 
 	let px: number;
 	if (block.size) {
 		px = (block.size / 72) * ctx.dpiAcross;
 	} else {
 		px = Infinity;
-		if (roomAcross !== undefined) px = (roomAcross * font.upem) / totalUnits;
-		if (roomAlong !== undefined && advance > 0) {
-			px = Math.min(px, (roomAlong * font.upem) / advance);
+		if (roomV !== undefined && layout.height > 0) px = (roomV * font.upem) / layout.height;
+		if (roomU !== undefined && layout.width > 0) {
+			px = Math.min(px, (roomU * font.upem) / layout.width);
 		}
-		if (!Number.isFinite(px)) px = (box.height * font.upem) / totalUnits;
+		if (!Number.isFinite(px)) px = box.height;
 	}
 	px = font.pixelEm
 		? Math.max(1, Math.floor(px / font.pixelEm)) * font.pixelEm
 		: Math.max(1, block.size ? Math.round(px) : Math.floor(px));
 	const scale = px / font.upem;
 
-	const width = advance * scale;
-	const textHeight = totalUnits * scale;
+	const W = layout.width * scale;
+	const T = layout.height * scale;
 	if (!font.pixelEm && px < MIN_LEGIBLE_EM && block.text.trim()) {
 		issue('text is too small to print legibly', block.size ? 'size' : 'text');
 	}
-	if (roomAcross !== undefined && textHeight > roomAcross + 0.5) {
+	if (roomV !== undefined && T > roomV + 0.5) {
 		issue(sideways ? 'text is wider than its box' : 'text is taller than its space', 'size');
 	}
-	if (roomAlong !== undefined && width > roomAlong + 0.5) {
+	if (roomU !== undefined && W > roomU + 0.5) {
 		issue(
 			sideways ? 'text is taller than its space' : 'text is wider than its box',
 			block.size ? 'size' : sideways ? 'text' : 'width'
 		);
 	}
 
-	// Place the text block in the box, then map each glyph from the text's frame (u along the
-	// line, v down) to the label's (x along the tape in its dots, y across).
+	// Place the text in the box, then map each glyph from the text's frame to the label's
+	// (x along the tape in its dots, y across).
 	const k = ctx.k;
-	const W = width;
-	const T = textHeight;
+	const s = scale;
 	const oy = offset(box.height - (sideways ? W : T), block.align);
 	const flattener = new PathFlattener({ a: 0, b: 0, c: 0, d: 0, e: 0, f: 0 });
-	runs.forEach((run, i) => {
-		const baseline = Math.round(above * scale + i * lineUnits * scale);
-		const lineX = Math.round(offset(W - run.advance * scale, block.textAlign, 'start'));
-		for (const g of run.glyphs) {
-			const u = lineX + g.x * scale;
-			const v = baseline - g.y * scale;
-			const s = scale;
+	for (const placement of layout.placements) {
+		const originU = Math.round(placement.u * s);
+		const baseline = Math.round(placement.baseline * s);
+		for (const g of placement.glyphs) {
+			const u = originU + g.x * s;
+			const v = baseline - g.y * s;
 			flattener.transform =
 				rotation === 90
 					? { a: 0, b: s, c: k * s, d: 0, e: k * (T - v), f: oy + u }
@@ -164,7 +213,7 @@ function renderText(block: TextBlock, box: Box, ctx: Context): Bitmap {
 							: { a: k * s, b: 0, c: 0, d: -s, e: k * u, f: oy + v };
 			font.draw(g.gid, block.weight, flattener);
 		}
-	});
+	}
 
 	return contoursToBitmap(
 		flattener.contours,

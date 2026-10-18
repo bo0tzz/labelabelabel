@@ -132,6 +132,19 @@
 					oninput={(e) => (block.weight = parseInt(e.currentTarget.value))}
 				/>
 			</label>
+		{:else if font && !font.pixelEm}
+			<!-- Fonts without a weight axis get heavier or lighter by how much of a dot must be inked. -->
+			<label>
+				Weight
+				<input
+					type="range"
+					min="0.2"
+					max="0.8"
+					step="0.05"
+					value={1 - (block.ink ?? 0.5)}
+					oninput={(e) => (block.ink = 1 - parseFloat(e.currentTarget.value))}
+				/>
+			</label>
 		{/if}
 		<label>
 			Rotation
@@ -150,16 +163,13 @@
 				<option value="end">right</option>
 			</select>
 		</label>
-		<label title="How much of a dot must be covered to print it. Higher makes text heavier.">
-			Darkness
+		<label class="check" title="Letters upright, one under the other.">
 			<input
-				type="range"
-				min="0.2"
-				max="0.8"
-				step="0.05"
-				value={1 - (block.ink ?? 0.5)}
-				oninput={(e) => (block.ink = 1 - parseFloat(e.currentTarget.value))}
+				type="checkbox"
+				checked={block.stack ?? portrait}
+				onchange={(e) => block.type === 'text' && (block.stack = e.currentTarget.checked)}
 			/>
+			Stack letters
 		</label>
 		<label
 			class="check"

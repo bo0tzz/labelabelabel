@@ -165,15 +165,24 @@ describe('renderLabel', () => {
 		expect(bottomHeavy(down)).toBe(false);
 	});
 
-	it('runs text across the tape in portrait', () => {
-		const doc = label([{ id: 't', type: 'text', text: 'ABCDEF', font: 'sans' }]);
-		const portrait = renderLabel({ ...doc, orientation: 'portrait' }, media12, { fonts });
-		const turned = renderLabel(
-			label([{ id: 't', type: 'text', text: 'ABCDEF', font: 'sans', rotate: 270 }]),
+	it('turns unstacked text across the tape in portrait', () => {
+		const block = { id: 't', type: 'text', text: 'ABCDEF', font: 'sans' } as const;
+		const portrait = renderLabel(
+			{ ...label([{ ...block, stack: false }]), orientation: 'portrait' },
 			media12,
 			{ fonts }
 		);
+		const turned = renderLabel(label([{ ...block, rotate: 270 }]), media12, { fonts });
 		expect(portrait.bitmap.data).toEqual(turned.bitmap.data);
+	});
+
+	it('stacks letters down the tape in portrait', () => {
+		const doc = label([{ id: 't', type: 'text', text: 'hello', font: 'sans' }]);
+		const flat = renderLabel(doc, media12, { fonts });
+		const stacked = renderLabel({ ...doc, orientation: 'portrait' }, media12, { fonts });
+		expect(stacked.issues).toEqual([]);
+		// Five letters one after another, each about as tall as the tape is wide.
+		expect(stacked.blocks[0].width).toBeGreaterThan(flat.blocks[0].width * 1.5);
 	});
 
 	it('warns when lines get too small to read', () => {
