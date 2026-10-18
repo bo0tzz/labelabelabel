@@ -49,7 +49,4 @@
 		flex-direction: column;
 		gap: 6px;
 	}
-	.spacer {
-		flex: 1;
-	}
 </style>

@@ -3,6 +3,7 @@ import { randomUUID } from 'node:crypto';
 import { and, asc, eq, inArray, sql } from 'drizzle-orm';
 import type { Label } from '#lib/label/types.js';
 import { getMedia } from '#lib/media.js';
+import { defaultHalfCut, tapeMismatch, wantedTape } from '#lib/printers/match.js';
 import type { LoadedMedia, PrinterInfo, PrinterStatus } from '#lib/printers/types.js';
 import { renderLabel } from '#lib/render/render.js';
 import type { FontRegistry } from '#lib/render/fonts.js';
@@ -253,16 +254,9 @@ export class PrinterService {
 
 	/** Why this job can't print on the loaded tape. */
 	#tapeBlocker(printer: Printer, doc: Label, options: JobOptions | null): string | null {
-		const loaded = printer.status.media;
-		const want = doc.media;
-		if (!loaded) return 'no tape';
-		if (loaded.id !== want.id) return `needs ${getMedia(want.id)?.name ?? want.id}`;
-		const colourMismatch =
-			(want.tape && want.tape !== loaded.tape) || (want.text && want.text !== loaded.text);
-		if (colourMismatch && !options?.force) {
-			return `needs ${want.text ?? 'any'} on ${want.tape ?? 'any'}`;
-		}
-		return null;
+		const mismatch = tapeMismatch(doc.media, printer.status.media);
+		if (!mismatch || (mismatch === 'colour' && options?.force)) return null;
+		return mismatch === 'no-tape' ? 'no tape' : `needs ${wantedTape(doc.media, mismatch)}`;
 	}
 
 	/**
@@ -310,8 +304,7 @@ export class PrinterService {
 				fonts: this.fonts,
 				vars: job.vars ?? undefined
 			});
-			// A half cut keeps the blank lead attached instead of cutting it off as a scrap.
-			const halfCut = job.options?.halfCut ?? printer.status.media?.kind === 'laminated';
+			const halfCut = job.options?.halfCut ?? defaultHalfCut(printer.status.media);
 			// Unless the previous label was chained, the tape between head and cutter is used up too.
 			const leadMm = printer.labelInPrinter ? 0 : media.minTapeMm;
 			const submitted = await printer.driver.print(

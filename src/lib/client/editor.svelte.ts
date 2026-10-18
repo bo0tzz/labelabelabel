@@ -4,7 +4,7 @@ import { DEFAULT_FONT } from '#lib/fonts.js';
 import { convertDrawing, emptyDrawing, resizeDrawing } from '#lib/label/drawing.js';
 import type { BitmapBlock, Block, BlockType, Label, MediaRef } from '#lib/label/types.js';
 import { templateVariables } from '#lib/label/template.js';
-import { dotsToMm, mmToDots, type MediaGeometry } from '#lib/media.js';
+import { dotsToMm, mediaKey, mmToDots, type MediaGeometry } from '#lib/media.js';
 import type { RenderedLabel } from '#lib/render/render.js';
 
 const DRAFT_KEY = 'labelabelabel:draft';
@@ -148,6 +148,17 @@ export class Editor {
 	setMedia(media: MediaRef) {
 		this.doc.media = media;
 		this.pristineMedia = false;
+	}
+
+	/** Puts a label nobody picked a tape for on the loaded tape; on an untouched label that is no edit. */
+	followLoadedTape(media: MediaRef) {
+		if (!this.pristineMedia || mediaKey(this.doc.media) === mediaKey(media)) return;
+		const untouched = !this.canUndo;
+		this.doc.media = media;
+		if (untouched) {
+			this.#settled.setImmediately(JSON.stringify(this.doc));
+			this.#history.clear();
+		}
 	}
 
 	add(type: BlockType) {

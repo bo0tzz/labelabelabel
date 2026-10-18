@@ -61,3 +61,8 @@ export function mmToDots(mm: number, dpi: number) {
 export function dotsToMm(dots: number, dpi: number) {
 	return (dots * 25.4) / dpi;
 }
+
+/** Identifies a tape by width and colours, e.g. to compare a label's tape with the loaded one. */
+export function mediaKey(media: { id: string; tape?: string | null; text?: string | null }) {
+	return `${media.id}|${media.tape ?? ''}|${media.text ?? ''}`;
+}

@@ -93,7 +93,4 @@
 	p {
 		margin: 0;
 	}
-	.small {
-		font-size: 0.8rem;
-	}
 </style>

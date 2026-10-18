@@ -143,9 +143,6 @@
 	.name {
 		min-width: 14em;
 	}
-	.small {
-		font-size: 0.8rem;
-	}
 	.nowrap {
 		white-space: nowrap;
 	}

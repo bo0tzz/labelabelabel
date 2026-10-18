@@ -160,6 +160,14 @@ th {
 	color: var(--bad);
 }
 
+.small {
+	font-size: 0.8rem;
+}
+
+.spacer {
+	flex: 1;
+}
+
 .row {
 	display: flex;
 	gap: 8px;

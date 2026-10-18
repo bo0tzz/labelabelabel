@@ -3,6 +3,7 @@
 	import { cancelJob, forceJob, history, print } from '#lib/api/jobs.remote.js';
 	import { printerState } from '#lib/api/printers.remote.js';
 	import LabelThumb from '#lib/components/LabelThumb.svelte';
+	import { tapeMismatch } from '#lib/printers/match.js';
 
 	const jobs = history();
 	const live = printerState();
@@ -45,9 +46,8 @@
 		canceled: 'canceled'
 	};
 
-	/** Only a colour mismatch can be overridden; the printer refuses the wrong width. */
 	const forceable = (job: Job) =>
-		job.status === 'waiting' && job.error?.startsWith('needs') && loaded?.id === job.doc.media.id;
+		job.status === 'waiting' && tapeMismatch(job.doc.media, loaded) === 'colour';
 </script>
 
 {#snippet header(job: Job)}
@@ -108,11 +108,5 @@
 	}
 	.history {
 		margin-top: 24px;
-	}
-	.spacer {
-		flex: 1;
-	}
-	.small {
-		font-size: 0.8rem;
 	}
 </style>

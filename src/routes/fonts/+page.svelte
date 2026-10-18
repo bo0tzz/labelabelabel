@@ -68,10 +68,4 @@
 		max-width: 320px;
 		margin-bottom: 12px;
 	}
-	.spacer {
-		flex: 1;
-	}
-	.small {
-		font-size: 0.8rem;
-	}
 </style>

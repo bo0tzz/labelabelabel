@@ -178,7 +178,6 @@
 		white-space: nowrap;
 	}
 	.small {
-		font-size: 0.8rem;
 		margin: 8px 0 0;
 	}
 </style>
