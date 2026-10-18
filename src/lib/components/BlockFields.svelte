@@ -192,7 +192,11 @@
 			class="check"
 			title="Size the text by its letters, without the room fonts keep for accents and descenders."
 		>
-			<input type="checkbox" bind:checked={block.tight} />
+			<input
+				type="checkbox"
+				checked={!!block.tight}
+				onchange={(e) => (block.tight = e.currentTarget.checked || undefined)}
+			/>
 			Fill height
 		</label>
 	{:else if block.type === 'qr'}
@@ -225,7 +229,11 @@
 			class="check"
 			title="Use all the room with modules of uneven size (e.g. 2 and 3 dots). Most scanners cope, but test it."
 		>
-			<input type="checkbox" bind:checked={block.stretch} />
+			<input
+				type="checkbox"
+				checked={!!block.stretch}
+				onchange={(e) => (block.stretch = e.currentTarget.checked || undefined)}
+			/>
 			Stretch to fill
 		</label>
 		{#each notes as note (note)}
