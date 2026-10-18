@@ -1,3 +1,4 @@
+import { applyPaletteSync, utils } from 'image-q';
 import { createBitmap, type Bitmap } from '#lib/bitmap.js';
 
 /**
@@ -34,29 +35,14 @@ function toDots(source: ImageBitmap, height: number, k: number, dither: boolean)
 	ctx.drawImage(source, 0, 0, width, height);
 	const { data } = ctx.getImageData(0, 0, width, height);
 
-	const gray = new Float32Array(width * height);
-	for (let i = 0; i < gray.length; i++) {
-		const alpha = data[i * 4 + 3] / 255;
-		const luma = 0.299 * data[i * 4] + 0.587 * data[i * 4 + 1] + 0.114 * data[i * 4 + 2];
-		gray[i] = 255 - alpha * (255 - luma);
-	}
+	const palette = new utils.Palette();
+	palette.add(utils.Point.createByRGBA(0, 0, 0, 255));
+	palette.add(utils.Point.createByRGBA(255, 255, 255, 255));
+	const dots = applyPaletteSync(utils.PointContainer.fromUint8Array(data, width, height), palette, {
+		imageQuantization: dither ? 'floyd-steinberg' : 'nearest'
+	}).toUint8Array();
 
 	const bitmap = createBitmap(width, height);
-	for (let y = 0; y < height; y++) {
-		for (let x = 0; x < width; x++) {
-			const i = y * width + x;
-			const ink = gray[i] < 128;
-			bitmap.data[i] = ink ? 1 : 0;
-			if (!dither) continue;
-			// Floyd–Steinberg: push the rounding error to unvisited neighbours.
-			const error = gray[i] - (ink ? 0 : 255);
-			if (x + 1 < width) gray[i + 1] += (error * 7) / 16;
-			if (y + 1 < height) {
-				if (x > 0) gray[i + width - 1] += (error * 3) / 16;
-				gray[i + width] += (error * 5) / 16;
-				if (x + 1 < width) gray[i + width + 1] += error / 16;
-			}
-		}
-	}
+	for (let i = 0; i < bitmap.data.length; i++) bitmap.data[i] = dots[i * 4] === 0 ? 1 : 0;
 	return bitmap;
 }
