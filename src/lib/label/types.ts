@@ -57,6 +57,8 @@ export interface TextBlock extends BlockBase {
 	/** Variable font weight axis. */
 	weight?: number;
 	textAlign?: Align;
+	/** Clockwise; 90 and 270 run the text across the tape. */
+	rotate?: 0 | 90 | 180 | 270;
 	lineHeight?: number;
 	/** Share of a pixel that must be covered to get ink; lower prints darker. */
 	ink?: number;

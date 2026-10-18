@@ -129,6 +129,50 @@ describe('renderLabel', () => {
 		expect(ink(filled.bitmap)).toBeGreaterThan(0);
 	});
 
+	it('runs rotated text across the tape', () => {
+		const flat = renderLabel(
+			label([{ id: 't', type: 'text', text: 'ABCDEF', font: 'sans' }]),
+			media12,
+			{
+				fonts
+			}
+		);
+		const turned = renderLabel(
+			label([{ id: 't', type: 'text', text: 'ABCDEF', font: 'sans', rotate: 90 }]),
+			media12,
+			{ fonts }
+		);
+		expect(turned.issues).toEqual([]);
+		// The line now has to fit across the 70 dot tape, so the block gets much narrower.
+		expect(turned.blocks[0].width).toBeLessThan(flat.blocks[0].width / 2);
+		expect(ink(turned.bitmap)).toBeGreaterThan(50);
+	});
+
+	it('turns text upside down at 180 degrees', () => {
+		const render = (rotate?: 180) =>
+			renderLabel(label([{ id: 't', type: 'text', text: 'L', font: 'sans', rotate }]), media12, {
+				fonts
+			}).bitmap;
+		const up = render();
+		const down = render(180);
+		const rowInk = (b: typeof up, y: number) =>
+			b.data.slice(y * b.width, (y + 1) * b.width).reduce((a, v) => a + v, 0);
+		// The foot of the L is at the bottom normally and at the top when turned.
+		const bottomHeavy = (b: typeof up) =>
+			Math.max(...Array.from({ length: 35 }, (_, y) => rowInk(b, 35 + y))) >
+			Math.max(...Array.from({ length: 35 }, (_, y) => rowInk(b, y)));
+		expect(bottomHeavy(up)).toBe(true);
+		expect(bottomHeavy(down)).toBe(false);
+	});
+
+	it('warns when lines get too small to read', () => {
+		const text = Array.from({ length: 20 }, (_, i) => `line ${i}`).join('\n');
+		const result = renderLabel(label([{ id: 't', type: 'text', text, font: 'sans' }]), media12, {
+			fonts
+		});
+		expect(result.issues.map((i) => i.message)).toContain('text is too small to print legibly');
+	});
+
 	it('round-trips bitmap block data', () => {
 		const bitmap = createBitmap(11, 3);
 		bitmap.data[0] = 1;

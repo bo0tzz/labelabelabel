@@ -108,6 +108,15 @@
 			</label>
 		{/if}
 		<label>
+			Rotation
+			<select bind:value={block.rotate}>
+				<option value={undefined}>none</option>
+				<option value={90}>90°</option>
+				<option value={180}>180°</option>
+				<option value={270}>270°</option>
+			</select>
+		</label>
+		<label>
 			Align
 			<select bind:value={block.textAlign}>
 				<option value={undefined}>left</option>

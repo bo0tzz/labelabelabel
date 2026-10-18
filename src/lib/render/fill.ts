@@ -3,11 +3,14 @@ import type { Bitmap } from '#lib/bitmap.js';
 /** A closed polygon as flat [x0, y0, x1, y1, ...] in pixel coordinates, y down. */
 export type Contour = number[];
 
+/** Affine transform: x' = a·x + c·y + e, y' = b·x + d·y + f. */
 export interface Transform {
-	scaleX: number;
-	scaleY: number;
-	translateX: number;
-	translateY: number;
+	a: number;
+	b: number;
+	c: number;
+	d: number;
+	e: number;
+	f: number;
 }
 
 /** Collects path segments, applying a transform and flattening curves into contours. */
@@ -24,7 +27,7 @@ export class PathFlattener {
 
 	#map(x: number, y: number): [number, number] {
 		const t = this.transform;
-		return [x * t.scaleX + t.translateX, y * t.scaleY + t.translateY];
+		return [t.a * x + t.c * y + t.e, t.b * x + t.d * y + t.f];
 	}
 
 	moveTo(x: number, y: number) {

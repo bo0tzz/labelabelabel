@@ -70,6 +70,9 @@ function offset(free: number, align: Align | undefined, fallback: Align = 'cente
 	}
 }
 
+/** Em size in dots below which outline fonts stop being readable at 180 dpi. */
+const MIN_LEGIBLE_EM = 7;
+
 function renderText(block: TextBlock, box: Box, ctx: Context): Bitmap {
 	const issue = (message: string, field?: string) =>
 		ctx.issues.push({ blockId: block.id, field, message });
@@ -98,14 +101,23 @@ function renderText(block: TextBlock, box: Box, ctx: Context): Bitmap {
 	const totalUnits = above + below + (lines.length - 1) * lineUnits;
 	const advance = Math.max(0, ...runs.map((r) => r.advance));
 
+	// Room for the text in its own frame: along its lines and across them, in dots.
+	const rotation = block.rotate ?? 0;
+	const sideways = rotation === 90 || rotation === 270;
+	const boxWidth = box.width !== undefined ? box.width / ctx.k : undefined;
+	const roomAlong = sideways ? box.height : boxWidth;
+	const roomAcross = sideways ? boxWidth : box.height;
+
 	let px: number;
 	if (block.size) {
 		px = (block.size / 72) * ctx.dpiAcross;
 	} else {
-		px = (box.height * font.upem) / totalUnits;
-		if (box.width !== undefined && advance > 0) {
-			px = Math.min(px, (box.width * font.upem) / (advance * ctx.k));
+		px = Infinity;
+		if (roomAcross !== undefined) px = (roomAcross * font.upem) / totalUnits;
+		if (roomAlong !== undefined && advance > 0) {
+			px = Math.min(px, (roomAlong * font.upem) / advance);
 		}
+		if (!Number.isFinite(px)) px = (box.height * font.upem) / totalUnits;
 	}
 	px = font.pixelEm
 		? Math.max(1, Math.floor(px / font.pixelEm)) * font.pixelEm
@@ -114,28 +126,51 @@ function renderText(block: TextBlock, box: Box, ctx: Context): Bitmap {
 
 	const width = advance * scale;
 	const textHeight = totalUnits * scale;
-	if (textHeight > box.height + 0.5) issue('text is taller than its space', 'size');
-	if (box.width !== undefined && width * ctx.k > box.width + 0.5) {
-		issue('text is wider than its box', block.size ? 'size' : 'width');
+	if (!font.pixelEm && px < MIN_LEGIBLE_EM && block.text.trim()) {
+		issue('text is too small to print legibly', block.size ? 'size' : 'text');
 	}
-	const top = offset(box.height - textHeight, block.align);
+	if (roomAcross !== undefined && textHeight > roomAcross + 0.5) {
+		issue(sideways ? 'text is wider than its box' : 'text is taller than its space', 'size');
+	}
+	if (roomAlong !== undefined && width > roomAlong + 0.5) {
+		issue(
+			sideways ? 'text is taller than its space' : 'text is wider than its box',
+			block.size ? 'size' : sideways ? 'text' : 'width'
+		);
+	}
 
-	const flattener = new PathFlattener({ scaleX: 0, scaleY: 0, translateX: 0, translateY: 0 });
+	// Place the text block in the box, then map each glyph from the text's frame (u along the
+	// line, v down) to the label's (x along the tape in its dots, y across).
+	const k = ctx.k;
+	const W = width;
+	const T = textHeight;
+	const oy = offset(box.height - (sideways ? W : T), block.align);
+	const flattener = new PathFlattener({ a: 0, b: 0, c: 0, d: 0, e: 0, f: 0 });
 	runs.forEach((run, i) => {
-		const baseline = Math.round(top + above * scale + i * lineUnits * scale);
-		const lineX = Math.round(offset(width - run.advance * scale, block.textAlign, 'start'));
+		const baseline = Math.round(above * scale + i * lineUnits * scale);
+		const lineX = Math.round(offset(W - run.advance * scale, block.textAlign, 'start'));
 		for (const g of run.glyphs) {
-			flattener.transform = {
-				scaleX: scale * ctx.k,
-				scaleY: -scale,
-				translateX: (lineX + g.x * scale) * ctx.k,
-				translateY: baseline - g.y * scale
-			};
+			const u = lineX + g.x * scale;
+			const v = baseline - g.y * scale;
+			const s = scale;
+			flattener.transform =
+				rotation === 90
+					? { a: 0, b: s, c: k * s, d: 0, e: k * (T - v), f: oy + u }
+					: rotation === 180
+						? { a: -k * s, b: 0, c: 0, d: s, e: k * (W - u), f: oy + T - v }
+						: rotation === 270
+							? { a: 0, b: -s, c: -k * s, d: 0, e: k * v, f: oy + W - u }
+							: { a: k * s, b: 0, c: 0, d: -s, e: k * u, f: oy + v };
 			font.draw(g.gid, block.weight, flattener);
 		}
 	});
 
-	return contoursToBitmap(flattener.contours, Math.ceil(width * ctx.k), box.height, block.ink);
+	return contoursToBitmap(
+		flattener.contours,
+		Math.ceil((sideways ? T : W) * k),
+		box.height,
+		block.ink
+	);
 }
 
 /** Rasterizes contours into a bitmap at least `width` wide, widened to fit overhanging ink. */
