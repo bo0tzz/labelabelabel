@@ -6,8 +6,19 @@ export interface FontEntry {
 	pixelEm?: number;
 	/** Range of the weight axis for variable fonts. */
 	weights?: [number, number];
-	/** Symbol glyphs, with the code that types each one if the font has ligatures for it. */
-	symbols?: { char: string; code?: string }[];
+	/** The font has a fill axis, so its glyphs can be filled instead of outlined. */
+	fill?: boolean;
+	/** Number of symbol glyphs; fetch them with `fontSymbols`. */
+	symbols?: number;
 }
+
+/** A symbol glyph and the names its ligatures accept, shortest first. */
+export interface FontSymbol {
+	char: string;
+	names: string[];
+}
+
+/** Fonts with this many symbols are icon fonts: they insert the symbol, not its name. */
+export const ICON_FONT_SYMBOLS = 200;
 
 export const DEFAULT_FONT = 'atkinson-hyperlegible-next';

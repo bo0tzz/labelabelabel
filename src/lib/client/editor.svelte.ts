@@ -71,7 +71,13 @@ export class Editor {
 	displayName = $derived.by(() => {
 		if (this.name) return this.name;
 		for (const b of this.doc.blocks) {
-			if (b.type === 'text' && b.text.trim()) return b.text.trim().split('\n')[0].slice(0, 60);
+			if (b.type !== 'text') continue;
+			// Private use characters are icons that would show as boxes outside the label.
+			const line = b.text
+				.replace(/[\ue000-\uf8ff\u{f0000}-\u{10ffff}]/gu, '')
+				.trim()
+				.split('\n')[0];
+			if (line) return line.slice(0, 60);
 		}
 		return 'Label';
 	});

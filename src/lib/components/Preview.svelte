@@ -359,7 +359,7 @@
 		stroke.last = point;
 	}
 
-	let pan: { pointerId: number; x: number; scroll: number } | null = null;
+	let pan: { pointerId: number; x: number; y: number } | null = null;
 
 	/** Safari starts selection and scroll gestures from touch events, so those are cancelled. */
 	function captureTouch(node: HTMLElement) {
@@ -372,7 +372,7 @@
 		if (!draw || !canvas) return;
 		if (event.pointerType === 'pen') penSeen = true;
 		else if (event.pointerType === 'touch' && penSeen) {
-			pan = { pointerId: event.pointerId, x: event.clientX, scroll: container?.scrollLeft ?? 0 };
+			pan = { pointerId: event.pointerId, x: event.clientX, y: event.clientY };
 			(event.currentTarget as HTMLElement).setPointerCapture(event.pointerId);
 			return;
 		}
@@ -401,8 +401,11 @@
 	}
 
 	function drawMove(event: PointerEvent) {
-		if (pan && event.pointerId === pan.pointerId && container) {
-			container.scrollLeft = pan.scroll - (event.clientX - pan.x);
+		if (pan && event.pointerId === pan.pointerId) {
+			container?.scrollBy(pan.x - event.clientX, 0);
+			window.scrollBy(0, pan.y - event.clientY);
+			pan.x = event.clientX;
+			pan.y = event.clientY;
 			return;
 		}
 		if (!stroke || event.pointerId !== stroke.pointerId) return;
@@ -468,24 +471,22 @@
 		>
 			<canvas bind:this={canvas}></canvas>
 			{#if draw}
+				<!-- Only the drawing takes touches, so the rest of the preview scrolls as usual. -->
 				{#each boxes.filter((b) => b.id === draw.block.id) as layout (layout.id)}
 					<div
-						class="box selected drawing"
+						class="box selected surface"
 						style:left="{cssX(feed + layout.x)}px"
 						style:width="{cssX(layout.width)}px"
 						style:top="{cssY(top + layout.y)}px"
 						style:height="{cssY(layout.height)}px"
+						{@attach captureTouch}
+						onpointerdown={drawDown}
+						onpointermove={drawMove}
+						onpointerup={drawUp}
+						onpointercancel={drawUp}
+						role="presentation"
 					></div>
 				{/each}
-				<div
-					class="surface"
-					{@attach captureTouch}
-					onpointerdown={drawDown}
-					onpointermove={drawMove}
-					onpointerup={drawUp}
-					onpointercancel={drawUp}
-					role="presentation"
-				></div>
 			{:else if interactive}
 				{#each boxes as layout (layout.id)}
 					{@const shown = !free && preview?.id === layout.id ? preview.box : layout}
@@ -619,12 +620,7 @@
 		transform: translate(50%, 50%);
 		cursor: nwse-resize;
 	}
-	.box.drawing {
-		pointer-events: none;
-	}
 	.surface {
-		position: absolute;
-		inset: 0;
 		cursor: crosshair;
 		touch-action: none;
 	}

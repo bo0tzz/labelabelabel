@@ -2,7 +2,7 @@ import { mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'nod
 import { basename, extname, join, relative } from 'node:path';
 import { eq } from 'drizzle-orm';
 import { DATA_DIR, FONTS_DIR } from '$app/env/private';
-import type { FontEntry } from '#lib/fonts.js';
+import type { FontEntry, FontSymbol } from '#lib/fonts.js';
 import { FontRegistry } from '#lib/render/fonts.js';
 import { db, fonts as fontsTable } from './db/index.js';
 
@@ -12,6 +12,7 @@ const uploadDir = join(DATA_DIR, 'fonts');
 interface StoredFont {
 	entry: FontEntry;
 	path: string;
+	symbols: FontSymbol[];
 }
 
 export function fontId(file: string) {
@@ -41,12 +42,12 @@ const catalog = new Map<string, StoredFont>();
 function register(id: string, path: string, source: FontEntry['source'], name?: string) {
 	try {
 		const font = registry.add(id, readFileSync(path));
-		const codes = font.symbolCodes();
+		const names = font.symbolNames();
 		// Ligatures without letters, like Schraubenkiste's small decimals, apply on their own.
 		const symbols = font
 			.symbols()
-			.map((char) => ({ char, code: codes.get(char) }))
-			.filter(({ code }) => code === undefined || /\p{L}/u.test(code));
+			.map((char) => ({ char, names: (names.get(char) ?? []).filter((n) => /\p{L}/u.test(n)) }))
+			.filter((s) => s.names.length || !names.has(s.char));
 		catalog.set(id, {
 			entry: {
 				id,
@@ -54,9 +55,11 @@ function register(id: string, path: string, source: FontEntry['source'], name?: 
 				source,
 				pixelEm: font.pixelEm,
 				weights: font.weightAxis ? [font.weightAxis.min, font.weightAxis.max] : undefined,
-				symbols: symbols.length ? symbols : undefined
+				fill: font.hasFill || undefined,
+				symbols: symbols.length || undefined
 			},
-			path
+			path,
+			symbols
 		});
 	} catch (e) {
 		console.warn(`skipping font ${relative('.', path)}: ${(e as Error).message}`);
@@ -85,6 +88,10 @@ export function loadFonts() {
 
 export function listFonts(): FontEntry[] {
 	return [...catalog.values()].map((f) => f.entry).sort((a, b) => a.name.localeCompare(b.name));
+}
+
+export function fontSymbols(id: string): FontSymbol[] {
+	return catalog.get(id)?.symbols ?? [];
 }
 
 export function fontPath(id: string): string | undefined {

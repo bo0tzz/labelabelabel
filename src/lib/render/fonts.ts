@@ -11,6 +11,12 @@ drawFuncs.setCubicToFunc((c1x, c1y, c2x, c2y, x, y, p) =>
 );
 drawFuncs.setClosePathFunc((p) => (p as PathFlattener).close());
 
+/** Settings of a variable font's axes. */
+export interface Variant {
+	weight?: number;
+	fill?: boolean;
+}
+
 export interface ShapedGlyph {
 	gid: number;
 	/** Pen position in font units. */
@@ -34,7 +40,9 @@ export class LoadedFont {
 	/** Set for fonts drawn on a pixel grid: the em size in pixels at 1×. */
 	readonly pixelEm: number | undefined;
 	readonly weightAxis: { min: number; max: number; default: number } | undefined;
-	#fonts = new Map<number, hb.Font>();
+	/** Variable icon fonts like Material Symbols can switch between outlined and filled. */
+	readonly hasFill: boolean;
+	#fonts = new Map<string, hb.Font>();
 
 	constructor(
 		readonly id: string,
@@ -45,6 +53,7 @@ export class LoadedFont {
 		if (!this.upem || !this.face.collectUnicodes().length) throw new Error('not a usable font');
 		const axes = this.face.getAxisInfos();
 		this.weightAxis = axes.wght;
+		this.hasFill = !!axes.FILL;
 		const extents = this.font().hExtents();
 		this.ascender = extents.ascender;
 		this.descender = extents.descender;
@@ -56,19 +65,24 @@ export class LoadedFont {
 		return this.face.getName(4, 'en') || this.face.getName(1, 'en') || this.id;
 	}
 
-	font(weight?: number): hb.Font {
-		const key = this.weightAxis && weight !== undefined ? weight : 0;
+	font(variant: Variant = {}): hb.Font {
+		const weight = this.weightAxis ? variant.weight : undefined;
+		const fill = this.hasFill && variant.fill ? 1 : 0;
+		const key = `${weight ?? ''}:${fill}`;
 		let font = this.#fonts.get(key);
 		if (!font) {
 			font = new hb.Font(this.face);
-			if (key) font.setVariations([new hb.Variation('wght', key)]);
+			const variations = [];
+			if (weight !== undefined) variations.push(new hb.Variation('wght', weight));
+			if (fill) variations.push(new hb.Variation('FILL', 1));
+			if (variations.length) font.setVariations(variations);
 			this.#fonts.set(key, font);
 		}
 		return font;
 	}
 
-	shape(text: string, weight?: number): ShapedRun {
-		const font = this.font(weight);
+	shape(text: string, variant?: Variant): ShapedRun {
+		const font = this.font(variant);
 		const buffer = new hb.Buffer();
 		buffer.addText(text);
 		buffer.guessSegmentProperties();
@@ -94,12 +108,12 @@ export class LoadedFont {
 	}
 
 	/** Ink box of a glyph in font units, y up; undefined for glyphs without ink. */
-	extents(gid: number, weight?: number) {
-		return this.font(weight).glyphExtents(gid);
+	extents(gid: number, variant?: Variant) {
+		return this.font(variant).glyphExtents(gid);
 	}
 
-	draw(gid: number, weight: number | undefined, flattener: PathFlattener) {
-		this.font(weight).drawGlyph(gid, drawFuncs, flattener);
+	draw(gid: number, variant: Variant | undefined, flattener: PathFlattener) {
+		this.font(variant).drawGlyph(gid, drawFuncs, flattener);
 		flattener.close();
 	}
 
@@ -126,22 +140,35 @@ export class LoadedFont {
 		return undefined;
 	}
 
-	/** Characters in the private use area, where symbol and icon fonts keep their glyphs. */
+	/**
+	 * Characters in the private use area, where symbol and icon fonts keep their glyphs. When
+	 * several map to one glyph, the lowest is kept.
+	 */
 	symbols(): string[] {
-		return [...this.face.collectUnicodes()]
-			.filter((u) => (u >= 0xe000 && u <= 0xf8fe) || (u >= 0xf0000 && u <= 0x10fffd))
-			.map((u) => String.fromCodePoint(u));
+		const font = this.font();
+		const seen = new Set<number>();
+		const symbols: string[] = [];
+		for (const u of [...this.face.collectUnicodes()].sort((a, b) => a - b)) {
+			if (!((u >= 0xe000 && u <= 0xf8fe) || (u >= 0xf0000 && u <= 0x10fffd))) continue;
+			const gid = font.glyph(u);
+			if (!gid || seen.has(gid)) continue;
+			seen.add(gid);
+			symbols.push(String.fromCodePoint(u));
+		}
+		return symbols;
 	}
 
 	/**
-	 * Text that the font's ligatures turn into its symbols, like `TX` in Schraubenkiste. Read
-	 * from the GSUB ligature table; the shortest sequence that shapes to the symbol wins.
+	 * Text that the font's ligatures turn into its symbols, like `TX` in Schraubenkiste or
+	 * `home` in Material Symbols. Read from the GSUB ligature table and checked by shaping;
+	 * each symbol's names are sorted shortest first.
 	 */
-	symbolCodes(): Map<string, string> {
+	symbolNames(): Map<string, string[]> {
 		const symbols = this.symbols();
-		const codes = new Map<string, string>();
-		const gsub = this.face.referenceTable('GSUB');
-		if (!symbols.length || !gsub) return codes;
+		const names = new Map<string, string[]>();
+		// The table is a view into wasm memory, which moves when it grows.
+		const gsub = this.face.referenceTable('GSUB')?.slice();
+		if (!symbols.length || !gsub) return names;
 
 		const font = this.font();
 		const symbolByGlyph = new Map<number, string>();
@@ -149,28 +176,33 @@ export class LoadedFont {
 			const gid = font.glyph(symbol.codePointAt(0)!);
 			if (gid) symbolByGlyph.set(gid, symbol);
 		}
+		// Icon fonts often map both cases to one glyph; names read better in lowercase.
 		const charByGlyph = new Map<number, string>();
 		for (const u of this.face.collectUnicodes()) {
 			const gid = font.glyph(u);
-			if (gid && !charByGlyph.has(gid)) charByGlyph.set(gid, String.fromCodePoint(u));
+			const char = String.fromCodePoint(u);
+			if (gid && (!charByGlyph.has(gid) || /[a-z]/.test(char))) charByGlyph.set(gid, char);
 		}
 
-		const ligatures = readLigatures(gsub).sort((a, b) => a.components.length - b.components.length);
-		for (const { glyph, components } of ligatures) {
+		for (const { glyph, components } of readLigatures(gsub)) {
 			const symbol = symbolByGlyph.get(glyph);
-			if (!symbol || codes.has(symbol)) continue;
+			if (!symbol) continue;
 			const chars = components.map((g) => charByGlyph.get(g));
 			if (chars.some((c) => c === undefined)) continue;
-			const code = chars.join('');
-			const shaped = this.shape(code).glyphs;
-			if (shaped.length === 1 && shaped[0].gid === glyph) codes.set(symbol, code);
+			const name = chars.join('');
+			const shaped = this.shape(name).glyphs;
+			if (shaped.length !== 1 || shaped[0].gid !== glyph) continue;
+			const list = names.get(symbol) ?? [];
+			if (!list.includes(name)) list.push(name);
+			names.set(symbol, list);
 		}
-		return codes;
+		for (const list of names.values()) list.sort((a, b) => a.length - b.length);
+		return names;
 	}
 
 	/** Highest and lowest ink of a shaped run, in font units relative to the baseline. */
-	inkExtents(run: ShapedRun, weight?: number): { top: number; bottom: number } | undefined {
-		const font = this.font(weight);
+	inkExtents(run: ShapedRun, variant?: Variant): { top: number; bottom: number } | undefined {
+		const font = this.font(variant);
 		let top = -Infinity;
 		let bottom = Infinity;
 		for (const g of run.glyphs) {

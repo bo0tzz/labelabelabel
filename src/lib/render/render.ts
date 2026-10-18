@@ -12,7 +12,7 @@ import type {
 } from '#lib/label/types.js';
 import { dotsToMm, mmToDots, type MediaGeometry } from '#lib/media.js';
 import { fillContours, PathFlattener, type Contour } from './fill.js';
-import type { FontRegistry, LoadedFont, ShapedGlyph, ShapedRun } from './fonts.js';
+import type { FontRegistry, LoadedFont, ShapedGlyph, ShapedRun, Variant } from './fonts.js';
 
 export interface RenderOptions {
 	fonts: FontRegistry;
@@ -93,8 +93,8 @@ function layoutLines(runs: ShapedRun[], font: LoadedFont, block: TextBlock): Tex
 	let above = font.ascender;
 	let below = -font.descender;
 	if (block.tight) {
-		const first = font.inkExtents(runs[0], block.weight);
-		const last = font.inkExtents(runs[runs.length - 1], block.weight);
+		const first = font.inkExtents(runs[0], variantOf(block));
+		const last = font.inkExtents(runs[runs.length - 1], variantOf(block));
 		if (first && last) {
 			above = first.top;
 			below = -last.bottom;
@@ -120,7 +120,7 @@ function layoutStacked(runs: ShapedRun[], font: LoadedFont, block: TextBlock): T
 	const spacing = block.lineHeight ?? 1;
 	const gap = font.upem * 0.12 * spacing;
 	const space = font.upem * 0.4 * spacing;
-	const extents = runs.map((run) => run.glyphs.map((g) => font.extents(g.gid, block.weight)));
+	const extents = runs.map((run) => run.glyphs.map((g) => font.extents(g.gid, variantOf(block))));
 	const column = Math.max(0, ...extents.flat().map((e) => e?.width ?? 0));
 	const columnGap = column * 0.3;
 	const placements: Placement[] = [];
@@ -149,6 +149,10 @@ function layoutStacked(runs: ShapedRun[], font: LoadedFont, block: TextBlock): T
 	};
 }
 
+function variantOf(block: TextBlock): Variant {
+	return { weight: block.weight, fill: block.filled };
+}
+
 function renderText(block: TextBlock, box: Box, ctx: Context): Bitmap {
 	const issue = (message: string, field?: string) =>
 		ctx.issues.push({ blockId: block.id, field, message });
@@ -158,7 +162,7 @@ function renderText(block: TextBlock, box: Box, ctx: Context): Bitmap {
 		return createBitmap(0, box.height);
 	}
 	const lines = fillTemplate(block.text, ctx.vars).split('\n');
-	const runs = lines.map((line) => font.shape(line, block.weight));
+	const runs = lines.map((line) => font.shape(line, variantOf(block)));
 	const missing = [...new Set(runs.flatMap((r) => r.missing))];
 	if (missing.length) issue(`${font.name} has no ${missing.join(' ')}`, 'text');
 
@@ -210,6 +214,7 @@ function renderText(block: TextBlock, box: Box, ctx: Context): Bitmap {
 	const s = scale;
 	const oy = offset(box.height - (sideways ? W : T), block.align);
 	const flattener = new PathFlattener({ a: 0, b: 0, c: 0, d: 0, e: 0, f: 0 });
+	const variant = variantOf(block);
 	for (const placement of layout.placements) {
 		const originU = Math.round(placement.u * s);
 		const baseline = Math.round(placement.baseline * s);
@@ -224,7 +229,7 @@ function renderText(block: TextBlock, box: Box, ctx: Context): Bitmap {
 						: rotation === 270
 							? { a: 0, b: -s, c: -k * s, d: 0, e: k * v, f: oy + W - u }
 							: { a: k * s, b: 0, c: 0, d: -s, e: k * u, f: oy + v };
-			font.draw(g.gid, block.weight, flattener);
+			font.draw(g.gid, variant, flattener);
 		}
 	}
 

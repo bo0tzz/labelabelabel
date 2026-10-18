@@ -6,6 +6,7 @@
 	import { emptyDrawing, invertDrawing, resizeDrawing } from '#lib/label/drawing.js';
 	import { encodeBitmapData, type RenderIssue } from '#lib/render/render.js';
 	import NumberField from './NumberField.svelte';
+	import SymbolPicker from './SymbolPicker.svelte';
 
 	interface Props {
 		block: Block;
@@ -25,7 +26,7 @@
 	let picker = $state(false);
 
 	const font = $derived(block.type === 'text' ? fonts.find((f) => f.id === block.font) : undefined);
-	const symbols = $derived(font?.symbols ?? []);
+	const hasSymbols = $derived(!!font?.symbols);
 	const FIELDS = ['text', 'font', 'size', 'width', 'height', 'data', 'module'];
 	const issueFor = (field: string) => issues.find((i) => i.field === field)?.message;
 	const general = $derived(
@@ -76,28 +77,19 @@
 					rows="2"
 					bind:this={textarea}
 					bind:value={block.text}
-					style:font-family={symbols.length ? `system-ui, ${cssFamily(block.font)}` : undefined}
+					style:font-family={hasSymbols ? `system-ui, ${cssFamily(block.font)}` : undefined}
 				></textarea>
 				{#if issueFor('text')}<span class="error">{issueFor('text')}</span>{/if}
 			</label>
-			{#if symbols.length}
+			{#if hasSymbols}
 				<button type="button" class="symbols-toggle" onclick={() => (picker = !picker)}>
 					Symbols
 				</button>
 			{/if}
 		</div>
-		{#if picker && symbols.length}
-			<div class="wide symbols" style:font-family={cssFamily(block.font)}>
-				{#each symbols as symbol (symbol.char)}
-					<button
-						type="button"
-						title={symbol.code ?? `U+${symbol.char.codePointAt(0)!.toString(16).toUpperCase()}`}
-						onclick={() => insert(symbol.code ?? symbol.char)}
-					>
-						{symbol.char}
-						{#if symbol.code}<small>{symbol.code}</small>{/if}
-					</button>
-				{/each}
+		{#if picker && hasSymbols}
+			<div class="wide">
+				<SymbolPicker font={block.font} oninsert={insert} />
 			</div>
 		{/if}
 		<label class:invalid={!!issueFor('font')}>
@@ -163,6 +155,9 @@
 				<option value="end">right</option>
 			</select>
 		</label>
+		{#if font?.fill}
+			<label class="check"><input type="checkbox" bind:checked={block.filled} /> Filled</label>
+		{/if}
 		<label class="check" title="Letters upright, one under the other.">
 			<input
 				type="checkbox"
@@ -326,28 +321,5 @@
 	}
 	.text label {
 		flex: 1;
-	}
-	.symbols {
-		display: flex;
-		flex-wrap: wrap;
-		gap: 4px;
-		max-height: 12em;
-		overflow-y: auto;
-	}
-	.symbols button {
-		font-family: inherit;
-		font-size: 1.4rem;
-		line-height: 1;
-		min-width: 2.2em;
-		padding: 4px;
-		display: flex;
-		flex-direction: column;
-		align-items: center;
-		gap: 2px;
-	}
-	.symbols small {
-		font-family: system-ui, sans-serif;
-		font-size: 0.6rem;
-		color: var(--muted);
 	}
 </style>

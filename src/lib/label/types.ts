@@ -58,6 +58,8 @@ export interface TextBlock extends BlockBase {
 	tight?: boolean;
 	/** Variable font weight axis. */
 	weight?: number;
+	/** Filled instead of outlined, for fonts with a fill axis. */
+	filled?: boolean;
 	textAlign?: Align;
 	/** Clockwise, relative to the view (which is turned in portrait). */
 	rotate?: 0 | 90 | 180 | 270;

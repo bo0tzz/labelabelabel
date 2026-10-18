@@ -8,7 +8,7 @@
 	import { printerState } from '#lib/api/printers.remote.js';
 	import { listTapes } from '#lib/api/tapes.remote.js';
 	import { Editor } from '#lib/client/editor.svelte.js';
-	import { ensureFont, fontRegistry, fontState } from '#lib/client/fonts.svelte.js';
+	import { cssFamily, ensureFont, fontRegistry, fontState } from '#lib/client/fonts.svelte.js';
 	import { tapeLabel } from '#lib/colors.js';
 	import BlockFields from '#lib/components/BlockFields.svelte';
 	import NumberField from '#lib/components/NumberField.svelte';
@@ -382,7 +382,13 @@
 						onclick={() => (editor.selectedId = block.id === editor.selectedId ? null : block.id)}
 					>
 						<span class="type">{TYPE_NAMES[block.type]}</span>
-						<span class="text">{summary(block)}</span>
+						<span
+							class="text"
+							style:font-family={block.type === 'text' &&
+							(fonts.current ?? []).find((f) => f.id === block.font)?.symbols
+								? `system-ui, ${cssFamily(block.font)}`
+								: undefined}>{summary(block)}</span
+						>
 						{#if issues.length}<span class="warn" title={issues[0].message}>!</span>{/if}
 					</button>
 					{#if !editor.free}
