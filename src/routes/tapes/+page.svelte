@@ -51,13 +51,13 @@
 						</div>
 					</td>
 					<td
-						class="nowrap"
+						class="nowrap left"
 						title="Estimate: {metres(tape.usedMm)} printed since the cassette was marked new"
 					>
 						<meter min="0" max={length} low={length * 0.15} optimum={length} value={left}></meter>
 						{metres(left)} of {metres(length)}
 					</td>
-					<td>
+					<td class="status">
 						<select
 							value={tape.status}
 							onchange={(e) =>
@@ -71,7 +71,7 @@
 							<option value="empty">used up</option>
 						</select>
 					</td>
-					<td class="nowrap">{tape.lastSeen?.toLocaleDateString() ?? ''}</td>
+					<td class="nowrap seen">{tape.lastSeen?.toLocaleDateString() ?? ''}</td>
 					<td class="nowrap actions">
 						<button onclick={() => (editing = editing === tape.id ? null : tape.id)}>
 							{editing === tape.id ? 'Done' : 'Edit'}
@@ -132,6 +132,38 @@
 <style>
 	.scroll {
 		overflow-x: auto;
+	}
+	@media (max-width: 600px) {
+		thead,
+		.seen {
+			display: none;
+		}
+		tr:not(.details) {
+			display: grid;
+			grid-template-areas: 'name actions' 'left status';
+			grid-template-columns: 1fr auto;
+			align-items: center;
+			border-bottom: 1px solid var(--border);
+		}
+		tr:not(.details) td {
+			border: none;
+		}
+		.name {
+			grid-area: name;
+			min-width: 0;
+		}
+		.actions {
+			grid-area: actions;
+		}
+		.left {
+			grid-area: left;
+		}
+		.status {
+			grid-area: status;
+		}
+		.status select {
+			width: auto;
+		}
 	}
 	.name {
 		min-width: 14em;
