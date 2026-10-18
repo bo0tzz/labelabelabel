@@ -1,6 +1,6 @@
 import type { Bitmap } from '#lib/bitmap.js';
 import { MEDIA_TYPE_CODES, type PtMedia } from '#lib/printers/brother-pt/media.js';
-import { packbits } from './packbits.js';
+import { encode as packbits } from '@fiahfy/packbits';
 
 const HEAD_PINS = 128;
 const LINE_BYTES = HEAD_PINS / 8;
@@ -75,7 +75,7 @@ export function encodeJob(pages: Bitmap[], options: PtPrintOptions): Uint8Array 
 				out.push(0x5a);
 				continue;
 			}
-			const packed = packbits(line);
+			const packed = packbits(Buffer.from(line));
 			// The printer accepts at most 17 bytes per line; worst-case PackBits output is longer.
 			const data = packed.length > LINE_BYTES ? [LINE_BYTES - 1, ...line] : packed;
 			out.push(0x47, data.length & 0xff, data.length >> 8, ...data);
