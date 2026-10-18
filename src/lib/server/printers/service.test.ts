@@ -104,6 +104,16 @@ describe('PrinterService', () => {
 		expect(driver.printed).toEqual([]);
 	});
 
+	it('refuses labels with nothing to print', async () => {
+		const { service } = await setup();
+		const doc: Label = {
+			v: 1,
+			media: { id: 'tze-12' },
+			blocks: [{ id: 'q', type: 'qr', data: '' }]
+		};
+		expect(() => service.submit({ doc, name: 'blank' })).toThrow('nothing to print');
+	});
+
 	it('half cuts laminated tape unless told otherwise', async () => {
 		const { service, driver, settle } = await setup();
 		await settle(service.submit({ doc: qr('tze-12'), name: 'a' }), 'done');

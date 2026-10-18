@@ -22,6 +22,8 @@ export interface RenderedLabel {
 	blocks: BlockLayout[];
 	/** Length of the piece of tape the printer cuts. */
 	tapeMm: number;
+	/** Nothing gets ink, e.g. the only text is empty. */
+	empty: boolean;
 	issues: RenderIssue[];
 }
 
@@ -139,6 +141,7 @@ export function renderLabel(
 		dpi: { along: dpiAlong, across: dpiAcross },
 		blocks,
 		tapeMm: Math.max(media.minTapeMm, dotsToMm(width, dpiAlong) + feed),
+		empty: !bitmap.data.includes(1),
 		issues: ctx.issues
 	};
 }

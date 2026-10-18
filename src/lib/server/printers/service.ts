@@ -167,7 +167,10 @@ export class PrinterService {
 		const printerId = job.printerId ?? this.#printers.keys().next().value;
 		const printer = printerId && this.#printers.get(printerId);
 		if (!printer) throw new Error('no printer configured');
-		if (!getMedia(job.doc.media.id)) throw new Error(`unknown media ${job.doc.media.id}`);
+		const media = getMedia(job.doc.media.id);
+		if (!media) throw new Error(`unknown media ${job.doc.media.id}`);
+		const rendered = renderLabel(job.doc, media, { fonts: this.fonts, vars: job.vars });
+		if (rendered.empty) throw new Error('nothing to print');
 		const id = randomUUID();
 		this.db
 			.insert(jobs)

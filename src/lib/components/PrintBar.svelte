@@ -7,7 +7,14 @@
 	import { defaultHalfCut, tapeMismatch, wantedTape } from '#lib/printers/match.js';
 	import NumberField from './NumberField.svelte';
 
-	let { editor, snapshot }: { editor: Editor; snapshot: PrinterSnapshot | undefined } = $props();
+	interface Props {
+		editor: Editor;
+		snapshot: PrinterSnapshot | undefined;
+		/** The label has no ink, so there is nothing to print. */
+		empty: boolean;
+	}
+
+	let { editor, snapshot, empty }: Props = $props();
 
 	let jobId = $state<string | null>(null);
 	let error = $state<string | null>(null);
@@ -33,6 +40,7 @@
 	/** What pressing Print will do with the printer and tape as they are now. */
 	const outcome = $derived.by((): Outcome => {
 		if (!printer) return { action: 'none', hint: 'No printer configured.' };
+		if (empty) return { action: 'none', hint: 'Nothing to print.' };
 		if (!printer.status.online) {
 			return { action: 'queue', hint: 'Printer offline. The job waits until it is back.' };
 		}
@@ -75,7 +83,7 @@
 	function onkeydown(event: KeyboardEvent) {
 		if ((event.ctrlKey || event.metaKey) && event.key === 'Enter') {
 			event.preventDefault();
-			void submit();
+			if (outcome.action !== 'none') void submit();
 		}
 	}
 </script>

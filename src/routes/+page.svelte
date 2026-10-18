@@ -243,7 +243,7 @@
 	<LabelSettings {editor} {rendered} {media} {loaded} />
 </div>
 
-<PrintBar bind:this={printBar} {editor} snapshot={live.current} />
+<PrintBar bind:this={printBar} {editor} snapshot={live.current} empty={rendered.empty} />
 
 <style>
 	.toolbar {
