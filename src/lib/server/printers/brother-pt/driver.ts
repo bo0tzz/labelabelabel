@@ -2,7 +2,7 @@ import { createBitmap, type Bitmap } from '#lib/bitmap.js';
 import { ptMediaId, type MediaGeometry } from '#lib/media.js';
 import { guessPartNumber, PT_MEDIA, type PtMedia } from '#lib/printers/brother-pt/media.js';
 import type { LoadedMedia, PrinterStatus } from '#lib/printers/types.js';
-import { IppClient } from '#lib/server/ipp.js';
+import { IppClient, IppError } from '#lib/server/ipp.js';
 import type { PrintJobOptions, PrinterDriver, SubmittedJob } from '../driver.js';
 import { encodeJob } from './raster.js';
 import { PtSnmp } from './snmp.js';
@@ -101,8 +101,7 @@ export class BrotherPtDriver implements PrinterDriver {
 			try {
 				({ state } = await this.#ipp.jobState(jobId));
 			} catch (e) {
-				// Finished jobs are purged after a few minutes.
-				if (String(e).includes('0x0406') || String(e).includes('0x0404')) return this.#waitIdle();
+				if (e instanceof IppError && e.jobGone) return this.#waitIdle();
 				continue;
 			}
 			if (state === 'completed') return;
