@@ -1,7 +1,8 @@
 import { DEFAULT_FONT } from '#lib/fonts.js';
-import type { Block, BlockType, Label, MediaRef } from '#lib/label/types.js';
+import { convertDrawing, emptyDrawing, resizeDrawing } from '#lib/label/drawing.js';
+import type { BitmapBlock, Block, BlockType, Label, MediaRef } from '#lib/label/types.js';
 import { templateVariables } from '#lib/label/template.js';
-import { dotsToMm, type MediaGeometry } from '#lib/media.js';
+import { dotsToMm, mmToDots, type MediaGeometry } from '#lib/media.js';
 import type { RenderedLabel } from '#lib/render/render.js';
 
 const DRAFT_KEY = 'labelabelabel:draft';
@@ -56,7 +57,10 @@ export class Editor {
 	/** True until the user picks a tape or loads a label, so the loaded tape can be applied. */
 	pristineMedia = $state(true);
 	saved = $state<string | undefined>();
-	#dragStart: Geometry | null = null;
+	tool = $state<'select' | 'pen' | 'eraser'>('select');
+	/** Pen size in dots. */
+	brush = $state(1);
+	#dragStart: (Geometry & { drawing?: BitmapBlock }) | null = null;
 
 	selected = $derived(this.doc.blocks.find((b) => b.id === this.selectedId) ?? null);
 	variables = $derived(templateVariables(this.doc));
@@ -161,6 +165,39 @@ export class Editor {
 		this.selectedId = block.id;
 	}
 
+	/** Adds an empty drawing as tall as the tape and picks up the pen. */
+	addDrawing(media: MediaGeometry, dpi: { along: number; across: number }) {
+		const block = newBlock('bitmap') as BitmapBlock;
+		block.w = mmToDots(20, dpi.along);
+		block.h = media.dots;
+		block.dpi = [dpi.along, dpi.across];
+		block.data = emptyDrawing(block.w, block.h);
+		if (this.free) {
+			const right = Math.max(0, ...this.doc.blocks.map((b) => (b.x ?? 0) + (b.width ?? 0)));
+			Object.assign(block, { x: round(right + 2), y: 0 });
+		}
+		const index = this.doc.blocks.findIndex((b) => b.id === this.selectedId);
+		this.doc.blocks.splice(index === -1 ? this.doc.blocks.length : index + 1, 0, block);
+		this.selectedId = block.id;
+		this.tool = 'pen';
+	}
+
+	/** Switches tools; drawing tools need the selected drawing at the label's resolution. */
+	setTool(tool: 'select' | 'pen' | 'eraser', dpi: { along: number; across: number }) {
+		const block = this.selected;
+		if (tool !== 'select' && block?.type === 'bitmap')
+			convertDrawing(block, [dpi.along, dpi.across]);
+		this.tool = tool;
+	}
+
+	/** Stores a finished stroke as its own undo step. */
+	setDrawing(id: string, data: string) {
+		const block = this.doc.blocks.find((b) => b.id === id);
+		if (block?.type !== 'bitmap') return;
+		block.data = data;
+		this.record();
+	}
+
 	remove(id: string) {
 		const index = this.doc.blocks.findIndex((b) => b.id === id);
 		if (index === -1) return;
@@ -196,6 +233,10 @@ export class Editor {
 				if (!box || block.type === 'space') continue;
 				block.x = round(dotsToMm(box.x - origin, along));
 				block.y = 0;
+				if (block.type === 'bitmap') {
+					block.y = round(dotsToMm(Math.floor((media.dots - block.h) / 2), across));
+					continue;
+				}
 				block.width = round(dotsToMm(box.width, along));
 				block.height = round(dotsToMm(media.dots, across));
 			}
@@ -216,7 +257,13 @@ export class Editor {
 	dragStart(id: string) {
 		const block = this.doc.blocks.find((b) => b.id === id);
 		this.#dragStart = block
-			? { x: block.x, y: block.y, width: block.width, height: block.height }
+			? {
+					x: block.x,
+					y: block.y,
+					width: block.width,
+					height: block.height,
+					drawing: block.type === 'bitmap' ? $state.snapshot(block) : undefined
+				}
 			: null;
 	}
 
@@ -232,6 +279,20 @@ export class Editor {
 		if (!block || !from) return;
 		block.x = round(Math.max(0, (from.x ?? 0) + dotsToMm(box.x - start.x, dpi.along)));
 		block.y = round((from.y ?? 0) + dotsToMm(box.y - start.y, dpi.across));
+		if (block.type === 'bitmap' && from.drawing) {
+			// Resizing a drawing changes its canvas; what is drawn stays where it was on the label.
+			if (box.width === start.width && box.height === start.height) return;
+			const original = { ...from.drawing };
+			convertDrawing(original, [dpi.along, dpi.across]);
+			resizeDrawing(original, box.width, box.height, start.x - box.x, start.y - box.y);
+			Object.assign(block, {
+				w: original.w,
+				h: original.h,
+				dpi: original.dpi,
+				data: original.data
+			});
+			return;
+		}
 		if (box.width !== start.width) block.width = round(dotsToMm(box.width, dpi.along));
 		if (box.height !== start.height) block.height = round(dotsToMm(box.height, dpi.across));
 	}

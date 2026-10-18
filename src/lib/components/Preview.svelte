@@ -1,7 +1,13 @@
 <script lang="ts">
 	import { tapeColor, textColor } from '#lib/colors.js';
 	import { mmToDots, type MediaGeometry } from '#lib/media.js';
-	import type { BlockLayout, RenderedLabel } from '#lib/render/render.js';
+	import type { BitmapBlock } from '#lib/label/types.js';
+	import {
+		decodeBitmapData,
+		encodeBitmapData,
+		type BlockLayout,
+		type RenderedLabel
+	} from '#lib/render/render.js';
 
 	/** A block's box in dots: x along the tape, y across it. */
 	export type Box = Pick<BlockLayout, 'x' | 'y' | 'width' | 'height'>;
@@ -30,6 +36,10 @@
 		maxHeight?: number;
 		/** Fixed CSS pixels per dot, e.g. for thumbnails. */
 		fixedScale?: number;
+		/** Draw on this drawing instead of selecting and moving blocks. */
+		draw?: { block: BitmapBlock; erase: boolean; brush: number } | null;
+		/** A finished stroke: the drawing's new data. */
+		ondraw?: (id: string, data: string) => void;
 	}
 
 	let {
@@ -47,11 +57,14 @@
 		onnudge,
 		maxScale = 4,
 		maxHeight = 220,
-		fixedScale
+		fixedScale,
+		draw = null,
+		ondraw
 	}: Props = $props();
 
 	let canvas: HTMLCanvasElement | undefined = $state();
 	let tapeElement: HTMLDivElement | undefined = $state();
+	let container: HTMLDivElement | undefined = $state();
 	let containerWidth = $state(0);
 
 	const k = $derived(rendered.dpi.along / rendered.dpi.across);
@@ -263,6 +276,116 @@
 		guides = { x: [], y: [] };
 	}
 
+	// Once a pen has been used, fingers scroll instead of drawing so a resting palm leaves no marks.
+	let penSeen = $state(false);
+	let stroke: {
+		id: string;
+		pointerId: number;
+		image: ReturnType<typeof decodeBitmapData>;
+		left: number;
+		top: number;
+		last: [number, number];
+		ctx: CanvasRenderingContext2D;
+	} | null = null;
+
+	/** Pointer position in the drawing's pixels. */
+	function drawingPoint(event: PointerEvent, left: number, imageTop: number): [number, number] {
+		const rect = tapeElement!.getBoundingClientRect();
+		const x = ((event.clientX - rect.left) / scale) * k - feed - left;
+		const y = (event.clientY - rect.top) / scale - top - imageTop;
+		return [x, y];
+	}
+
+	function stamp([cx, cy]: [number, number]) {
+		if (!stroke || !draw) return;
+		const { image, ctx } = stroke;
+		const across = Math.max(1, draw.brush);
+		const along = Math.max(1, Math.round(draw.brush * k));
+		const x0 = Math.floor(cx) - Math.floor((along - 1) / 2);
+		const y0 = Math.floor(cy) - Math.floor((across - 1) / 2);
+		const value = draw.erase ? 0 : 1;
+		ctx.fillStyle = draw.erase ? tapeColor(tape) : textColor(text);
+		for (let py = y0; py < y0 + across; py++) {
+			for (let px = x0; px < x0 + along; px++) {
+				if (px < 0 || py < 0 || px >= image.width || py >= image.height) continue;
+				if (draw.brush >= 3) {
+					const dx = (px + 0.5 - cx) / (along / 2);
+					const dy = (py + 0.5 - cy) / (across / 2);
+					if (dx * dx + dy * dy > 1) continue;
+				}
+				image.data[py * image.width + px] = value;
+				ctx.fillRect(feed + stroke.left + px, top + stroke.top + py, 1, 1);
+			}
+		}
+	}
+
+	function lineTo(point: [number, number]) {
+		if (!stroke) return;
+		const [x0, y0] = stroke.last;
+		const steps = Math.max(
+			1,
+			Math.ceil(Math.max(Math.abs(point[0] - x0), Math.abs(point[1] - y0)))
+		);
+		for (let i = 1; i <= steps; i++) {
+			stamp([x0 + ((point[0] - x0) * i) / steps, y0 + ((point[1] - y0) * i) / steps]);
+		}
+		stroke.last = point;
+	}
+
+	let pan: { pointerId: number; x: number; scroll: number } | null = null;
+
+	function drawDown(event: PointerEvent) {
+		if (!draw || !canvas) return;
+		if (event.pointerType === 'pen') penSeen = true;
+		else if (event.pointerType === 'touch' && penSeen) {
+			pan = { pointerId: event.pointerId, x: event.clientX, scroll: container?.scrollLeft ?? 0 };
+			(event.currentTarget as HTMLElement).setPointerCapture(event.pointerId);
+			return;
+		}
+		if (event.pointerType === 'mouse' && event.button !== 0) return;
+		const layout = boxes.find((b) => b.id === draw!.block.id);
+		const ctx = canvas.getContext('2d');
+		if (!layout || !ctx) return;
+		event.preventDefault();
+		(event.currentTarget as HTMLElement).setPointerCapture(event.pointerId);
+		const { block } = draw;
+		const free = layout.height - block.h;
+		const imageTop =
+			layout.y +
+			(block.align === 'start' ? 0 : block.align === 'end' ? free : Math.floor(free / 2));
+		const point = drawingPoint(event, layout.x, imageTop);
+		stroke = {
+			id: block.id,
+			pointerId: event.pointerId,
+			image: decodeBitmapData(block.data, block.w, block.h),
+			left: layout.x,
+			top: imageTop,
+			last: point,
+			ctx
+		};
+		stamp(point);
+	}
+
+	function drawMove(event: PointerEvent) {
+		if (pan && event.pointerId === pan.pointerId && container) {
+			container.scrollLeft = pan.scroll - (event.clientX - pan.x);
+			return;
+		}
+		if (!stroke || event.pointerId !== stroke.pointerId) return;
+		const events = event.getCoalescedEvents?.() ?? [event];
+		for (const e of events.length ? events : [event]) {
+			lineTo(drawingPoint(e, stroke.left, stroke.top));
+		}
+	}
+
+	function drawUp(event: PointerEvent) {
+		if (pan?.pointerId === event.pointerId) pan = null;
+		if (!stroke || event.pointerId !== stroke.pointerId) return;
+		const { id, image } = stroke;
+		stroke = null;
+		ondraw?.(id, encodeBitmapData(image));
+	}
+
 	function keydown(event: KeyboardEvent) {
 		if (!onnudge || !selectedId) return;
 		const step = event.shiftKey ? 10 : 1;
@@ -281,7 +404,7 @@
 	}
 </script>
 
-<div class="preview" bind:clientWidth={containerWidth}>
+<div class="preview" bind:this={container} bind:clientWidth={containerWidth}>
 	<!-- svelte-ignore a11y_no_noninteractive_tabindex -->
 	<div
 		bind:this={tapeElement}
@@ -295,7 +418,25 @@
 		onkeydown={keydown}
 	>
 		<canvas bind:this={canvas}></canvas>
-		{#if interactive}
+		{#if draw}
+			{#each boxes.filter((b) => b.id === draw.block.id) as layout (layout.id)}
+				<div
+					class="box selected drawing"
+					style:left="{cssX(feed + layout.x)}px"
+					style:width="{cssX(layout.width)}px"
+					style:top="{cssY(top + layout.y)}px"
+					style:height="{cssY(layout.height)}px"
+				></div>
+			{/each}
+			<div
+				class="surface"
+				onpointerdown={drawDown}
+				onpointermove={drawMove}
+				onpointerup={drawUp}
+				onpointercancel={drawUp}
+				role="presentation"
+			></div>
+		{:else if interactive}
 			{#each boxes as layout (layout.id)}
 				{@const shown = !free && preview?.id === layout.id ? preview.box : layout}
 				<div
@@ -414,6 +555,15 @@
 		bottom: 0;
 		transform: translate(50%, 50%);
 		cursor: nwse-resize;
+	}
+	.box.drawing {
+		pointer-events: none;
+	}
+	.surface {
+		position: absolute;
+		inset: 0;
+		cursor: crosshair;
+		touch-action: none;
 	}
 	.guide {
 		position: absolute;

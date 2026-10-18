@@ -48,6 +48,31 @@
 		});
 	});
 	const blockIssues = (id: string) => rendered.issues.filter((i) => i.blockId === id);
+
+	/** CSS pixels per dot; null fits the preview to the page. */
+	let zoom = $state<number | null>(null);
+	function zoomBy(step: number) {
+		const current = zoom ?? 2;
+		const next = Math.min(16, Math.max(1, current + step * (current >= 4 ? 2 : 1)));
+		zoom = next;
+	}
+
+	const draw = $derived.by(() => {
+		const block = editor.selected;
+		if (block?.type !== 'bitmap' || editor.tool === 'select') return null;
+		return { block, erase: editor.tool === 'eraser', brush: editor.brush };
+	});
+
+	// Drawing happens dot for dot, so a drawing made at another resolution is converted first.
+	$effect(() => {
+		const block = editor.selected;
+		const { along, across } = rendered.dpi;
+		if (block?.type === 'bitmap' && editor.tool !== 'select') {
+			if (block.dpi[0] !== along || block.dpi[1] !== across) {
+				untrack(() => editor.setTool(editor.tool, rendered.dpi));
+			}
+		}
+	});
 	const problemIds = $derived([
 		...new Set(rendered.issues.flatMap((i) => (i.blockId ? [i.blockId] : [])))
 	]);
@@ -285,6 +310,39 @@
 </div>
 
 <section class="preview">
+	<div class="row tools">
+		{#if editor.selected?.type === 'bitmap'}
+			<div class="segmented" role="group" aria-label="Tool">
+				{#each [['select', 'Select'], ['pen', 'Pen'], ['eraser', 'Eraser']] as const as [tool, name] (tool)}
+					<button
+						class:active={editor.tool === tool}
+						aria-pressed={editor.tool === tool}
+						onclick={() => editor.setTool(tool, rendered.dpi)}>{name}</button
+					>
+				{/each}
+			</div>
+			{#if editor.tool !== 'select'}
+				<div class="segmented" role="group" aria-label="Size">
+					{#each [1, 2, 3, 5, 8] as size (size)}
+						<button
+							class:active={editor.brush === size}
+							aria-pressed={editor.brush === size}
+							title="{size} dots"
+							onclick={() => (editor.brush = size)}>{size}</button
+						>
+					{/each}
+				</div>
+			{/if}
+		{/if}
+		<span class="spacer"></span>
+		<div class="segmented" role="group" aria-label="Zoom">
+			<button title="Zoom out" disabled={zoom === null} onclick={() => zoomBy(-1)}>−</button>
+			<button title="Fit" class:active={zoom === null} onclick={() => (zoom = null)}>
+				{zoom === null ? 'fit' : `${zoom}×`}
+			</button>
+			<button title="Zoom in" onclick={() => zoomBy(1)}>+</button>
+		</div>
+	</div>
 	<Preview
 		{rendered}
 		{media}
@@ -298,6 +356,9 @@
 		ondrag={(id, box, start) => editor.drag(id, box, start, rendered.dpi)}
 		onreorder={(id, index) => editor.reorder(id, index)}
 		onnudge={editor.free ? (dx, dy) => editor.nudge(dx, dy, rendered.dpi) : undefined}
+		fixedScale={zoom ?? undefined}
+		{draw}
+		ondraw={(id, data) => editor.setDrawing(id, data)}
 	/>
 	<div class="row muted info">
 		<span>{rendered.tapeMm.toFixed(1)} mm</span>
@@ -350,6 +411,7 @@
 			<button onclick={() => editor.add('text')}>Text</button>
 			<button onclick={() => editor.add('qr')}>QR</button>
 			<button onclick={() => editor.add('line')}>Line</button>
+			<button onclick={() => editor.addDrawing(media, rendered.dpi)}>Drawing</button>
 			{#if !editor.free}
 				<button onclick={() => editor.add('space')}>Space</button>
 			{/if}
@@ -530,6 +592,29 @@
 	.info {
 		font-size: 0.85rem;
 		margin-top: 4px;
+	}
+	.tools {
+		margin-bottom: 4px;
+	}
+	.segmented {
+		display: inline-flex;
+	}
+	.segmented button {
+		border-radius: 0;
+		margin-left: -1px;
+		min-width: 2.4em;
+	}
+	.segmented button:first-child {
+		border-radius: 4px 0 0 4px;
+		margin-left: 0;
+	}
+	.segmented button:last-child {
+		border-radius: 0 4px 4px 0;
+	}
+	.segmented button.active {
+		background: var(--accent);
+		border-color: var(--accent);
+		color: var(--on-accent);
 	}
 	.columns {
 		display: grid;

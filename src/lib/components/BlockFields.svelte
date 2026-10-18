@@ -2,7 +2,9 @@
 	import { cssFamily } from '#lib/client/fonts.svelte.js';
 	import type { FontEntry } from '#lib/fonts.js';
 	import type { Block } from '#lib/label/types.js';
-	import type { RenderIssue } from '#lib/render/render.js';
+	import { imageToBitmap } from '#lib/client/image.js';
+	import { emptyDrawing, invertDrawing, resizeDrawing } from '#lib/label/drawing.js';
+	import { encodeBitmapData, type RenderIssue } from '#lib/render/render.js';
 	import NumberField from './NumberField.svelte';
 
 	interface Props {
@@ -24,6 +26,25 @@
 	const general = $derived(
 		issues.filter((i) => !i.field || !FIELDS.includes(i.field)).map((i) => i.message)
 	);
+
+	let dither = $state(false);
+
+	const drawingWidthMm = () =>
+		block.type === 'bitmap' ? Math.round((block.w / block.dpi[0]) * 25.4 * 10) / 10 : undefined;
+
+	function setDrawingWidth(mm: number | undefined) {
+		if (block.type !== 'bitmap' || mm === undefined) return;
+		resizeDrawing(block, (mm / 25.4) * block.dpi[0], block.h);
+	}
+
+	async function importImage(event: Event & { currentTarget: HTMLInputElement }) {
+		const file = event.currentTarget.files?.[0];
+		event.currentTarget.value = '';
+		if (!file || block.type !== 'bitmap') return;
+		const image = await imageToBitmap(file, block.h, block.dpi[0] / block.dpi[1], dither);
+		block.w = image.width;
+		block.data = encodeBitmapData(image);
+	}
 
 	function insert(symbol: string) {
 		if (block.type !== 'text') return;
@@ -166,6 +187,31 @@
 			placeholder="fit"
 			error={issueFor('module')}
 		/>
+	{:else if block.type === 'bitmap'}
+		<div class="wide row">
+			<span class="muted">{block.w} × {block.h} dots</span>
+			<button
+				type="button"
+				onclick={() => block.type === 'bitmap' && (block.data = emptyDrawing(block.w, block.h))}
+				>Clear</button
+			>
+			<button type="button" onclick={() => block.type === 'bitmap' && invertDrawing(block)}
+				>Invert</button
+			>
+			<label class="button">
+				Import image
+				<input type="file" accept="image/*" hidden onchange={importImage} />
+			</label>
+			<label class="check"><input type="checkbox" bind:checked={dither} /> Dither</label>
+		</div>
+		<NumberField
+			label="Width (mm)"
+			bind:value={drawingWidthMm, setDrawingWidth}
+			min={0.5}
+			max={1000}
+			step={0.5}
+			required
+		/>
 	{:else if block.type === 'line'}
 		<label>
 			Direction
@@ -212,16 +258,18 @@
 			placeholder="0"
 		/>
 	{/if}
-	<NumberField
-		label="Width (mm)"
-		bind:value={block.width}
-		min={0}
-		max={1000}
-		step={0.5}
-		placeholder="auto"
-		error={issueFor('width')}
-	/>
-	{#if free && block.type !== 'space'}
+	{#if block.type !== 'bitmap'}
+		<NumberField
+			label="Width (mm)"
+			bind:value={block.width}
+			min={0}
+			max={1000}
+			step={0.5}
+			placeholder="auto"
+			error={issueFor('width')}
+		/>
+	{/if}
+	{#if free && block.type !== 'space' && block.type !== 'bitmap'}
 		<NumberField
 			label="Height (mm)"
 			bind:value={block.height}

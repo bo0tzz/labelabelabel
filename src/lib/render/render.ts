@@ -270,7 +270,7 @@ export function encodeBitmapData(bitmap: Bitmap): string {
 }
 
 /** Scales by nearest neighbour; when shrinking, a target pixel gets ink if any source pixel had it. */
-function resample(source: Bitmap, fx: number, fy: number): Bitmap {
+export function resample(source: Bitmap, fx: number, fy: number): Bitmap {
 	const w = Math.max(1, Math.round(source.width * fx));
 	const h = Math.max(1, Math.round(source.height * fy));
 	const out = createBitmap(w, h);
@@ -370,10 +370,14 @@ function layoutFree(label: Label, height: number, ctx: Context) {
 	let end = 0;
 	for (const block of label.blocks) {
 		if (block.type === 'space') continue;
-		const box = {
-			width: block.width !== undefined ? mmToDots(block.width, ctx.dpiAlong) : undefined,
-			height: block.height !== undefined ? mmToDots(block.height, ctx.dpiAcross) : height
-		};
+		// A drawing's box is its canvas, so resizing it crops or extends rather than stretches.
+		const box =
+			block.type === 'bitmap'
+				? { height: Math.round((block.h * ctx.dpiAcross) / block.dpi[1]) }
+				: {
+						width: block.width !== undefined ? mmToDots(block.width, ctx.dpiAlong) : undefined,
+						height: block.height !== undefined ? mmToDots(block.height, ctx.dpiAcross) : height
+					};
 		const bitmap = renderBlock(block, box, ctx);
 		const x = mmToDots(block.x ?? 0, ctx.dpiAlong);
 		const y = mmToDots(block.y ?? 0, ctx.dpiAcross);
