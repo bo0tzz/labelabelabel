@@ -6,8 +6,12 @@ export interface FontEntry {
 	pixelEm?: number;
 	/** Range of the weight axis for variable fonts. */
 	weights?: [number, number];
-	/** The font has a fill axis, so its glyphs can be filled instead of outlined. */
+	/** The font has a fill axis, so its icons can be filled instead of outlined. */
 	fill?: boolean;
+	/** Filled and outlined icons come as two fonts, like Schraubenkiste and Schraubenkiste2. */
+	pair?: { filled: string; outline: string };
+	/** The outlined half of a pair; it is picked through its filled font. */
+	hidden?: boolean;
 	/** Number of symbol glyphs; fetch them with `fontSymbols`. */
 	symbols?: number;
 }

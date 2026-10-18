@@ -382,11 +382,11 @@
 						onclick={() => (editor.selectedId = block.id === editor.selectedId ? null : block.id)}
 					>
 						<span class="type">{TYPE_NAMES[block.type]}</span>
+						<!-- Text shows in its own font, which also turns codes like TX into their symbols. -->
 						<span
 							class="text"
-							style:font-family={block.type === 'text' &&
-							(fonts.current ?? []).find((f) => f.id === block.font)?.symbols
-								? `system-ui, ${cssFamily(block.font)}`
+							style:font-family={block.type === 'text'
+								? `${cssFamily(block.font)}, system-ui`
 								: undefined}>{summary(block)}</span
 						>
 						{#if issues.length}<span class="warn" title={issues[0].message}>!</span>{/if}

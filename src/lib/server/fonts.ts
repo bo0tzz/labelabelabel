@@ -66,8 +66,11 @@ function register(id: string, path: string, source: FontEntry['source'], name?: 
 	}
 }
 
-/** Optional `fonts.json` next to the bundled fonts, mapping font ids to display names. */
-function bundledNames(): Record<string, { name?: string }> {
+/**
+ * Optional `fonts.json` next to the bundled fonts: display names by font id, and `outline` to
+ * pair a font with the font holding its outlined icons.
+ */
+function bundledManifest(): Record<string, { name?: string; outline?: string }> {
 	try {
 		return JSON.parse(readFileSync(join(FONTS_DIR, 'fonts.json'), 'utf8'));
 	} catch {
@@ -76,10 +79,17 @@ function bundledNames(): Record<string, { name?: string }> {
 }
 
 export function loadFonts() {
-	const names = bundledNames();
+	const manifest = bundledManifest();
 	for (const path of scan(FONTS_DIR)) {
 		const id = fontId(path);
-		register(id, path, 'bundled', names[id]?.name);
+		register(id, path, 'bundled', manifest[id]?.name);
+	}
+	for (const [id, { outline }] of Object.entries(manifest)) {
+		const filled = catalog.get(id)?.entry;
+		const outlined = outline && catalog.get(outline)?.entry;
+		if (!filled || !outlined) continue;
+		filled.pair = outlined.pair = { filled: id, outline };
+		outlined.hidden = true;
 	}
 	for (const row of db.select().from(fontsTable).all()) {
 		register(row.id, join(uploadDir, row.file), 'uploaded', row.name);

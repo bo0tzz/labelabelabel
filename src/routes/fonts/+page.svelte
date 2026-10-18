@@ -37,7 +37,7 @@
 	<input type="text" bind:value={sample} />
 </label>
 
-{#each fonts.current ?? [] as font (font.id)}
+{#each (fonts.current ?? []).filter((f) => !f.hidden) as font (font.id)}
 	<section class="font">
 		<div class="row">
 			<strong>{font.name}</strong>
@@ -45,6 +45,7 @@
 				{font.id}
 				{#if font.pixelEm}· pixel font, {font.pixelEm} px{/if}
 				{#if font.weights}· weight {font.weights[0]}–{font.weights[1]}{/if}
+				{#if font.fill || font.pair}· filled and outlined icons{/if}
 				{#if font.source === 'uploaded'}· uploaded{/if}
 			</span>
 			<span class="spacer"></span>

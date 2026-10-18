@@ -1,11 +1,30 @@
 {
-	"atkinson-hyperlegible-next": { "name": "Atkinson Hyperlegible Next" },
-	"barlow-condensed": { "name": "Barlow Condensed" },
-	"barlow-condensed-semi-bold": { "name": "Barlow Condensed SemiBold" },
-	"departure-mono": { "name": "Departure Mono" },
-	"jetbrains-mono": { "name": "JetBrains Mono" },
-	"material-symbols-outlined": { "name": "Material Symbols" },
-	"schraubenkiste": { "name": "Schraubenkiste" },
-	"schraubenkiste2": { "name": "Schraubenkiste, light symbols" },
-	"silkscreen": { "name": "Silkscreen" }
+	"atkinson-hyperlegible-next": {
+		"name": "Atkinson Hyperlegible Next"
+	},
+	"barlow-condensed": {
+		"name": "Barlow Condensed"
+	},
+	"barlow-condensed-semi-bold": {
+		"name": "Barlow Condensed SemiBold"
+	},
+	"departure-mono": {
+		"name": "Departure Mono"
+	},
+	"jet-brains-mono": {
+		"name": "JetBrains Mono"
+	},
+	"material-symbols-outlined": {
+		"name": "Material Symbols"
+	},
+	"schraubenkiste": {
+		"name": "Schraubenkiste",
+		"outline": "schraubenkiste2"
+	},
+	"schraubenkiste2": {
+		"name": "Schraubenkiste"
+	},
+	"silkscreen": {
+		"name": "Silkscreen"
+	}
 }

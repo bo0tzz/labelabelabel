@@ -94,8 +94,11 @@
 		{/if}
 		<label class:invalid={!!issueFor('font')}>
 			Font
-			<select bind:value={block.font}>
-				{#each fonts as f (f.id)}
+			<select
+				value={font?.pair?.filled ?? block.font}
+				onchange={(e) => block.type === 'text' && (block.font = e.currentTarget.value)}
+			>
+				{#each fonts.filter((f) => !f.hidden) as f (f.id)}
 					<option value={f.id}>{f.name}</option>
 				{/each}
 				{#if !font}
@@ -155,8 +158,20 @@
 				<option value="end">right</option>
 			</select>
 		</label>
-		{#if font?.fill}
-			<label class="check"><input type="checkbox" bind:checked={block.filled} /> Filled</label>
+		{#if font?.fill || font?.pair}
+			<label class="check">
+				<input
+					type="checkbox"
+					checked={font.pair ? block.font === font.pair.filled : !!block.filled}
+					onchange={(e) => {
+						if (block.type !== 'text') return;
+						if (font?.pair)
+							block.font = e.currentTarget.checked ? font.pair.filled : font.pair.outline;
+						else block.filled = e.currentTarget.checked;
+					}}
+				/>
+				Filled icons
+			</label>
 		{/if}
 		<label class="check" title="Letters upright, one under the other.">
 			<input
