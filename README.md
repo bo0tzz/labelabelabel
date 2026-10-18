@@ -12,9 +12,12 @@ Web app for designing and printing labels on a Brother PT-P750W.
 ## Running
 
 ```sh
-docker build -t labelabelabel .
-docker run -p 3000:3000 -v labelabelabel:/data -e PRINTER_HOST=192.168.178.109 labelabelabel
+docker run -p 3000:3000 -v labelabelabel:/data -e PRINTER_HOST=192.168.178.109 \
+  ghcr.io/bo0tzz/labelabelabel:latest
 ```
+
+Releases are tagged by version (`ghcr.io/bo0tzz/labelabelabel:0.1.0`); `main` and `sha-<commit>`
+track the main branch.
 
 | Variable            | Default   | Purpose                                                                  |
 | ------------------- | --------- | ------------------------------------------------------------------------ |
@@ -39,6 +42,7 @@ SQLite needs working file locks.
 ## Development
 
 ```sh
+mise install
 pnpm install
 echo PRINTER_HOST=192.168.178.109 > .env
 pnpm dev
