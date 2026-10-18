@@ -2,7 +2,7 @@
 	import { cancelJob } from '#lib/api/jobs.remote.js';
 	import { feedAndCut, type PrinterSnapshot } from '#lib/api/printers.remote.js';
 	import { tapeLabel } from '#lib/colors.js';
-	import { tapeLengthMm } from '#lib/tapes.js';
+	import { kindName, tapeLengthMm } from '#lib/tapes.js';
 	import TapeSwatch from './TapeSwatch.svelte';
 
 	let { snapshot }: { snapshot: PrinterSnapshot | undefined } = $props();
@@ -11,13 +11,6 @@
 	const queue = $derived(snapshot?.queue ?? []);
 	const media = $derived(printer?.status.media);
 	let feedError = $state<string | null>(null);
-
-	const KIND: Record<string, string> = {
-		laminated: 'laminated',
-		'non-laminated': 'non-laminated',
-		hs21: 'heat shrink 2:1',
-		hs31: 'heat shrink 3:1'
-	};
 
 	const stateText = $derived.by(() => {
 		if (!printer) return 'not configured';
@@ -71,7 +64,7 @@
 					{media.name}, {tapeLabel(media)}
 					<br />
 					<span class="muted">
-						{KIND[media.kind] ?? media.kind}
+						{kindName(media.kind)}
 						{#if printer.tape?.partNumber ?? media.partNumber}
 							· {printer.tape?.partNumber ?? media.partNumber}{/if}
 						{#if printer.tape}· ~{(

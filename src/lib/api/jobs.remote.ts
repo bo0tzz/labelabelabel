@@ -3,7 +3,7 @@ import * as v from 'valibot';
 import { command, getRequestEvent, query } from '$app/server';
 import { labelSchema, varsSchema } from '#lib/label/schema.js';
 import { db, jobs } from '#lib/server/db/index.js';
-import { printers } from '#lib/server/printers/index.js';
+import { printers, whenPrintersChange } from '#lib/server/printers/index.js';
 
 export const print = command(
 	v.object({
@@ -28,8 +28,8 @@ export const cancelJob = command(v.string(), (id) => printers.cancel(id));
 
 export const forceJob = command(v.string(), (id) => printers.force(id));
 
-export const history = query(() =>
-	db
+function recentJobs() {
+	return db
 		.select({
 			id: jobs.id,
 			name: jobs.name,
@@ -46,8 +46,10 @@ export const history = query(() =>
 		.from(jobs)
 		.orderBy(desc(jobs.createdAt))
 		.limit(200)
-		.all()
-);
+		.all();
+}
+
+export const history = query.live(() => whenPrintersChange(recentJobs));
 
 export const getJob = query(v.string(), (id) =>
 	db.select().from(jobs).where(eq(jobs.id, id)).get()

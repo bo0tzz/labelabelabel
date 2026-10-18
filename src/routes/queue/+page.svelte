@@ -17,17 +17,6 @@
 	);
 	const finished = $derived((jobs.current ?? []).filter((j) => !ACTIVE.includes(j.status)));
 
-	// The live status changes whenever a job is added, moves or finishes.
-	let lastKey = '';
-	$effect(() => {
-		const key = JSON.stringify([
-			live.current?.queue.map((j) => [j.id, j.status, j.error]),
-			live.current?.recent.map((j) => [j.id, j.status])
-		]);
-		if (lastKey && key !== lastKey) void jobs.refresh();
-		lastKey = key;
-	});
-
 	async function reprint(job: Job) {
 		await print({
 			doc: job.doc,

@@ -12,3 +12,12 @@ export function tapeLengthMm(tape: {
 }) {
 	return tape.lengthMm ?? nominalLengthMm(tape);
 }
+
+const KIND_NAMES: Record<string, string> = {
+	hs21: 'heat shrink 2:1',
+	hs31: 'heat shrink 3:1'
+};
+
+export function kindName(kind: string) {
+	return KIND_NAMES[kind] ?? kind;
+}

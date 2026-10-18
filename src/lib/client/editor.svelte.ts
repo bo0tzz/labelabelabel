@@ -162,14 +162,7 @@ export class Editor {
 	}
 
 	add(type: BlockType) {
-		const block = newBlock(type);
-		if (this.free) {
-			const right = Math.max(0, ...this.doc.blocks.map((b) => (b.x ?? 0) + (b.width ?? 0)));
-			Object.assign(block, { x: round(right + 2), y: 0 });
-		}
-		const index = this.doc.blocks.findIndex((b) => b.id === this.selectedId);
-		this.doc.blocks.splice(index === -1 ? this.doc.blocks.length : index + 1, 0, block);
-		this.selectedId = block.id;
+		this.#insert(newBlock(type));
 	}
 
 	/** Adds an empty drawing as tall as the tape and picks up the pen. */
@@ -179,6 +172,12 @@ export class Editor {
 		block.h = media.dots;
 		block.dpi = [dpi.along, dpi.across];
 		block.data = emptyDrawing(block.w, block.h);
+		this.#insert(block);
+		this.tool = 'pen';
+	}
+
+	/** Adds a block after the selected one; in free layout it goes right of everything else. */
+	#insert(block: Block) {
 		if (this.free) {
 			const right = Math.max(0, ...this.doc.blocks.map((b) => (b.x ?? 0) + (b.width ?? 0)));
 			Object.assign(block, { x: round(right + 2), y: 0 });
@@ -186,7 +185,6 @@ export class Editor {
 		const index = this.doc.blocks.findIndex((b) => b.id === this.selectedId);
 		this.doc.blocks.splice(index === -1 ? this.doc.blocks.length : index + 1, 0, block);
 		this.selectedId = block.id;
-		this.tool = 'pen';
 	}
 
 	/** Switches tools; drawing tools need the selected drawing at the label's resolution. */

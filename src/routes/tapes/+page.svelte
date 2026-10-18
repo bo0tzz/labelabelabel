@@ -4,19 +4,12 @@
 	import { tapeLabel } from '#lib/colors.js';
 	import TapeSwatch from '#lib/components/TapeSwatch.svelte';
 	import { getMedia } from '#lib/media.js';
-	import { nominalLengthMm, tapeLengthMm } from '#lib/tapes.js';
+	import { kindName, nominalLengthMm, tapeLengthMm } from '#lib/tapes.js';
 
 	const tapes = listTapes();
 	const live = printerState();
 	const loadedIds = $derived(new Set(live.current?.printers.map((p) => p.tapeId)));
 	let editing = $state<number | null>(null);
-
-	const KIND: Record<string, string> = {
-		laminated: 'laminated',
-		'non-laminated': 'non-laminated',
-		hs21: 'heat shrink 2:1',
-		hs31: 'heat shrink 3:1'
-	};
 
 	const metres = (mm: number) => `${(mm / 1000).toFixed(1).replace(/\.0$/, '')} m`;
 
@@ -53,7 +46,7 @@
 						<TapeSwatch tape={tape.tape} text={tape.text} />
 						{getMedia(tape.mediaId)?.name ?? tape.mediaId}, {tapeLabel(tape)}
 						<div class="muted small">
-							{[tape.partNumber, KIND[tape.kind] ?? tape.kind].filter(Boolean).join(' · ')}
+							{[tape.partNumber, kindName(tape.kind)].filter(Boolean).join(' · ')}
 							{#if loadedIds.has(tape.id)}· <strong>loaded</strong>{/if}
 						</div>
 					</td>

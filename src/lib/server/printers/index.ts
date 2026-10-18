@@ -13,3 +13,24 @@ export function startPrinters() {
 		printers.add('default', 'PT-P750W', new BrotherPtDriver({ host: PRINTER_HOST, transport }));
 	}
 }
+
+/** Yields `read()` now and again whenever printers or jobs change, skipping repeats. */
+export async function* whenPrintersChange<T>(read: () => T): AsyncGenerator<T> {
+	let wake = () => {};
+	const unsubscribe = printers.subscribe(() => wake());
+	let last: string | undefined;
+	try {
+		while (true) {
+			const changed = new Promise<void>((resolve) => (wake = resolve));
+			const value = read();
+			const json = JSON.stringify(value);
+			if (json !== last) {
+				last = json;
+				yield value;
+			}
+			await changed;
+		}
+	} finally {
+		unsubscribe();
+	}
+}

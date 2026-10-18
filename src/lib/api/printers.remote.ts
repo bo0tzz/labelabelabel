@@ -1,7 +1,7 @@
 import { asc, desc, eq, inArray, notInArray } from 'drizzle-orm';
 import { command, query } from '$app/server';
 import { db, jobs, tapes } from '#lib/server/db/index.js';
-import { printers } from '#lib/server/printers/index.js';
+import { printers, whenPrintersChange } from '#lib/server/printers/index.js';
 
 const ACTIVE = ['queued', 'waiting', 'printing'] as const;
 
@@ -50,18 +50,6 @@ function snapshot() {
 
 export type PrinterSnapshot = ReturnType<typeof snapshot>;
 
-export const printerState = query.live(async function* () {
-	let wake = () => {};
-	const unsubscribe = printers.subscribe(() => wake());
-	try {
-		while (true) {
-			const changed = new Promise<void>((resolve) => (wake = resolve));
-			yield snapshot();
-			await changed;
-		}
-	} finally {
-		unsubscribe();
-	}
-});
+export const printerState = query.live(() => whenPrintersChange(snapshot));
 
 export const feedAndCut = command(() => printers.feed());
