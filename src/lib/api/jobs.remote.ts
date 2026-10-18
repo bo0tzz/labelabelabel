@@ -3,7 +3,7 @@ import * as v from 'valibot';
 import { command, getRequestEvent, query } from '$app/server';
 import { labelSchema, varsSchema } from '#lib/label/schema.js';
 import { db, jobs } from '#lib/server/db/index.js';
-import { printers } from '#lib/server/printers/service.js';
+import { printers } from '#lib/server/printers/index.js';
 
 export const print = command(
 	v.object({

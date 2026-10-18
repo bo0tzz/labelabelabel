@@ -157,6 +157,13 @@
 	$effect(() => {
 		if (!ready) return;
 		void JSON.stringify(editor.doc);
+		const timer = setTimeout(() => editor.record(), 400);
+		return () => clearTimeout(timer);
+	});
+
+	$effect(() => {
+		if (!ready) return;
+		void JSON.stringify(editor.doc);
 		void JSON.stringify(editor.vars);
 		void editor.name;
 		void editor.saved;
@@ -234,9 +241,23 @@
 	}
 
 	function onkeydown(event: KeyboardEvent) {
-		if ((event.ctrlKey || event.metaKey) && event.key === 'Enter') {
+		const mod = event.ctrlKey || event.metaKey;
+		if (mod && event.key === 'Enter') {
 			event.preventDefault();
 			void submit();
+			return;
+		}
+		// Text fields keep their own undo.
+		const target = event.target as HTMLElement | null;
+		if (target?.closest('input, textarea, select')) return;
+		const key = event.key.toLowerCase();
+		if (mod && key === 'z') {
+			event.preventDefault();
+			if (event.shiftKey) editor.redo();
+			else editor.undo();
+		} else if (mod && key === 'y') {
+			event.preventDefault();
+			editor.redo();
 		}
 	}
 </script>
@@ -255,6 +276,8 @@
 	{#if editor.labelId}
 		<button onclick={() => save(true)} disabled={saving}>Save copy</button>
 	{/if}
+	<button onclick={() => editor.undo()} disabled={!editor.canUndo} title="Undo">Undo</button>
+	<button onclick={() => editor.redo()} disabled={!editor.canRedo} title="Redo">Redo</button>
 	<button onclick={clear}>Clear</button>
 	{#if editor.labelId}
 		<span class="muted small">{editor.dirty ? 'unsaved changes' : 'saved'}</span>

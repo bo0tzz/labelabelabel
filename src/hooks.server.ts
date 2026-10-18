@@ -1,11 +1,11 @@
 import type { Handle, ServerInit } from '@sveltejs/kit/hooks';
 import { USER_HEADER } from '$app/env/private';
 import { loadFonts } from '#lib/server/fonts.js';
-import { printers } from '#lib/server/printers/service.js';
+import { startPrinters } from '#lib/server/printers/index.js';
 
 export const init: ServerInit = () => {
 	loadFonts();
-	printers.start();
+	startPrinters();
 };
 
 export const handle: Handle = ({ event, resolve }) => {

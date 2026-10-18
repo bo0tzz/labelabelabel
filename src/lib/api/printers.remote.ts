@@ -1,7 +1,7 @@
 import { asc, desc, eq, inArray, notInArray } from 'drizzle-orm';
 import { command, query } from '$app/server';
 import { db, jobs, tapes } from '#lib/server/db/index.js';
-import { printers } from '#lib/server/printers/service.js';
+import { printers } from '#lib/server/printers/index.js';
 
 const ACTIVE = ['queued', 'waiting', 'printing'] as const;
 

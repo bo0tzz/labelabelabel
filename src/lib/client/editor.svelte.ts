@@ -84,6 +84,54 @@ export class Editor {
 		this.saved = draft.saved;
 		this.selectedId = draft.doc.blocks[0]?.id ?? null;
 		this.pristineMedia = false;
+		this.#past = [];
+		this.#future = [];
+		this.#recorded = JSON.stringify(draft.doc);
+		this.canUndo = this.canRedo = false;
+	}
+
+	// Undo history holds serialized documents. `record` is called shortly after edits settle,
+	// so a burst of changes like a drag becomes one step.
+	#past: string[] = [];
+	#future: string[] = [];
+	#recorded = JSON.stringify(this.doc);
+	canUndo = $state(false);
+	canRedo = $state(false);
+
+	record() {
+		const now = JSON.stringify(this.doc);
+		if (now === this.#recorded) return;
+		this.#past.push(this.#recorded);
+		if (this.#past.length > 200) this.#past.shift();
+		this.#future = [];
+		this.#recorded = now;
+		this.canUndo = true;
+		this.canRedo = false;
+	}
+
+	undo() {
+		this.record();
+		const previous = this.#past.pop();
+		if (previous === undefined) return;
+		this.#future.push(this.#recorded);
+		this.#restore(previous);
+	}
+
+	redo() {
+		const next = this.#future.pop();
+		if (next === undefined) return;
+		this.#past.push(this.#recorded);
+		this.#restore(next);
+	}
+
+	#restore(json: string) {
+		this.doc = JSON.parse(json);
+		this.#recorded = json;
+		this.canUndo = this.#past.length > 0;
+		this.canRedo = this.#future.length > 0;
+		if (!this.doc.blocks.some((b) => b.id === this.selectedId)) {
+			this.selectedId = this.doc.blocks[0]?.id ?? null;
+		}
 	}
 
 	/** Marks the current state as saved under `labelId`. */
