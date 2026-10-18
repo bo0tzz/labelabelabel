@@ -1,4 +1,5 @@
 import QRCode from 'qrcode';
+import { base64ToUint8Array, uint8ArrayToBase64 } from 'uint8array-extras';
 import { blit, createBitmap, fillRect, type Bitmap } from '#lib/bitmap.js';
 import { fillTemplate } from '#lib/label/template.js';
 import type {
@@ -421,7 +422,7 @@ function renderLine(block: LineBlock, box: Box, ctx: Context): Bitmap {
 }
 
 export function decodeBitmapData(data: string, w: number, h: number): Bitmap {
-	const bytes = Uint8Array.from(atob(data), (c) => c.charCodeAt(0));
+	const bytes = base64ToUint8Array(data);
 	const stride = Math.ceil(w / 8);
 	const bitmap = createBitmap(w, h);
 	for (let y = 0; y < h; y++) {
@@ -440,9 +441,7 @@ export function encodeBitmapData(bitmap: Bitmap): string {
 			if (bitmap.data[y * bitmap.width + x]) bytes[y * stride + (x >> 3)] |= 0x80 >> (x & 7);
 		}
 	}
-	let binary = '';
-	for (const b of bytes) binary += String.fromCharCode(b);
-	return btoa(binary);
+	return uint8ArrayToBase64(bytes);
 }
 
 /** Scales by nearest neighbour; when shrinking, a target pixel gets ink if any source pixel had it. */

@@ -1,5 +1,6 @@
 import { mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { basename, extname, join, relative } from 'node:path';
+import slugify from '@sindresorhus/slugify';
 import { eq } from 'drizzle-orm';
 import { DATA_DIR, FONTS_DIR } from '$app/env/private';
 import type { FontEntry, FontSymbol } from '#lib/fonts.js';
@@ -17,12 +18,7 @@ interface StoredFont {
 }
 
 export function fontId(file: string) {
-	return basename(file, extname(file))
-		.replace(/([a-z])([A-Z])/g, '$1-$2')
-		.toLowerCase()
-		.replace(/[^a-z0-9]+/g, '-')
-		.replace(/-(regular)$/, '')
-		.replace(/^-|-$/g, '');
+	return slugify(basename(file, extname(file))).replace(/-regular$/, '');
 }
 
 function scan(dir: string): string[] {
