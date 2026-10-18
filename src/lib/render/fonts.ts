@@ -1,5 +1,4 @@
 import * as hb from 'harfbuzzjs';
-import { readLigatures } from './gsub.js';
 
 /** Settings of a variable font's axes. */
 export interface Variant {
@@ -103,6 +102,10 @@ export class LoadedFont {
 		return { glyphs, advance: x, missing: [...missing] };
 	}
 
+	glyphOf(char: string): number {
+		return this.font().glyph(char.codePointAt(0)!) ?? 0;
+	}
+
 	hasChar(codePoint: number): boolean {
 		return !!this.font().glyph(codePoint);
 	}
@@ -156,48 +159,6 @@ export class LoadedFont {
 			symbols.push(String.fromCodePoint(u));
 		}
 		return symbols;
-	}
-
-	/**
-	 * Text that the font's ligatures turn into its symbols, like `TX` in Schraubenkiste or
-	 * `home` in Material Symbols. Read from the GSUB ligature table and checked by shaping;
-	 * each symbol's names are sorted shortest first.
-	 */
-	symbolNames(): Map<string, string[]> {
-		const symbols = this.symbols();
-		const names = new Map<string, string[]>();
-		// The table is a view into wasm memory, which moves when it grows.
-		const gsub = this.face.referenceTable('GSUB')?.slice();
-		if (!symbols.length || !gsub) return names;
-
-		const font = this.font();
-		const symbolByGlyph = new Map<number, string>();
-		for (const symbol of symbols) {
-			const gid = font.glyph(symbol.codePointAt(0)!);
-			if (gid) symbolByGlyph.set(gid, symbol);
-		}
-		// Icon fonts often map both cases to one glyph; names read better in lowercase.
-		const charByGlyph = new Map<number, string>();
-		for (const u of this.face.collectUnicodes()) {
-			const gid = font.glyph(u);
-			const char = String.fromCodePoint(u);
-			if (gid && (!charByGlyph.has(gid) || /[a-z]/.test(char))) charByGlyph.set(gid, char);
-		}
-
-		for (const { glyph, components } of readLigatures(gsub)) {
-			const symbol = symbolByGlyph.get(glyph);
-			if (!symbol) continue;
-			const chars = components.map((g) => charByGlyph.get(g));
-			if (chars.some((c) => c === undefined)) continue;
-			const name = chars.join('');
-			const shaped = this.shape(name).glyphs;
-			if (shaped.length !== 1 || shaped[0].gid !== glyph) continue;
-			const list = names.get(symbol) ?? [];
-			if (!list.includes(name)) list.push(name);
-			names.set(symbol, list);
-		}
-		for (const list of names.values()) list.sort((a, b) => a.length - b.length);
-		return names;
 	}
 }
 

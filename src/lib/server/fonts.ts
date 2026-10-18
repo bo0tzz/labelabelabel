@@ -5,6 +5,7 @@ import { DATA_DIR, FONTS_DIR } from '$app/env/private';
 import type { FontEntry, FontSymbol } from '#lib/fonts.js';
 import { FontRegistry } from '#lib/render/fonts.js';
 import { db, fonts as fontsTable } from './db/index.js';
+import { symbolNames } from './gsub.js';
 
 const FONT_EXTENSIONS = ['.ttf', '.otf'];
 const uploadDir = join(DATA_DIR, 'fonts');
@@ -41,8 +42,9 @@ const catalog = new Map<string, StoredFont>();
 
 function register(id: string, path: string, source: FontEntry['source'], name?: string) {
 	try {
-		const font = registry.add(id, readFileSync(path));
-		const names = font.symbolNames();
+		const data = readFileSync(path);
+		const font = registry.add(id, data);
+		const names = symbolNames(font, data);
 		// Ligatures without letters, like Schraubenkiste's small decimals, apply on their own.
 		const symbols = font
 			.symbols()
