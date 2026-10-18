@@ -1,0 +1,281 @@
+<script lang="ts">
+	import { cssFamily } from '#lib/client/fonts.svelte.js';
+	import type { FontEntry } from '#lib/fonts.js';
+	import type { Block } from '#lib/label/types.js';
+	import type { RenderIssue } from '#lib/render/render.js';
+	import NumberField from './NumberField.svelte';
+
+	interface Props {
+		block: Block;
+		fonts: FontEntry[];
+		issues: RenderIssue[];
+		free: boolean;
+	}
+
+	let { block = $bindable(), fonts, issues, free }: Props = $props();
+
+	let textarea: HTMLTextAreaElement | undefined = $state();
+	let picker = $state(false);
+
+	const font = $derived(block.type === 'text' ? fonts.find((f) => f.id === block.font) : undefined);
+	const symbols = $derived(font?.symbols ?? []);
+	const FIELDS = ['text', 'font', 'size', 'width', 'height', 'data', 'module'];
+	const issueFor = (field: string) => issues.find((i) => i.field === field)?.message;
+	const general = $derived(
+		issues.filter((i) => !i.field || !FIELDS.includes(i.field)).map((i) => i.message)
+	);
+
+	function insert(symbol: string) {
+		if (block.type !== 'text') return;
+		const start = textarea?.selectionStart ?? block.text.length;
+		const end = textarea?.selectionEnd ?? start;
+		block.text = block.text.slice(0, start) + symbol + block.text.slice(end);
+		requestAnimationFrame(() => {
+			textarea?.focus();
+			textarea?.setSelectionRange(start + symbol.length, start + symbol.length);
+		});
+	}
+</script>
+
+<div class="fields">
+	{#each general as message (message)}
+		<p class="error wide">{message}</p>
+	{/each}
+
+	{#if block.type === 'text'}
+		<div class="wide text">
+			<label class:invalid={!!issueFor('text')}>
+				Text
+				<textarea
+					rows="2"
+					bind:this={textarea}
+					bind:value={block.text}
+					style:font-family={symbols.length ? `system-ui, ${cssFamily(block.font)}` : undefined}
+				></textarea>
+				{#if issueFor('text')}<span class="error">{issueFor('text')}</span>{/if}
+			</label>
+			{#if symbols.length}
+				<button type="button" class="symbols-toggle" onclick={() => (picker = !picker)}>
+					Symbols
+				</button>
+			{/if}
+		</div>
+		{#if picker && symbols.length}
+			<div class="wide symbols" style:font-family={cssFamily(block.font)}>
+				{#each symbols as symbol (symbol.char)}
+					<button
+						type="button"
+						title={symbol.code ?? `U+${symbol.char.codePointAt(0)!.toString(16).toUpperCase()}`}
+						onclick={() => insert(symbol.code ?? symbol.char)}
+					>
+						{symbol.char}
+						{#if symbol.code}<small>{symbol.code}</small>{/if}
+					</button>
+				{/each}
+			</div>
+		{/if}
+		<label class:invalid={!!issueFor('font')}>
+			Font
+			<select bind:value={block.font}>
+				{#each fonts as f (f.id)}
+					<option value={f.id}>{f.name}</option>
+				{/each}
+				{#if !font}
+					<option value={block.font}>{block.font} (missing)</option>
+				{/if}
+			</select>
+			{#if issueFor('font')}<span class="error">{issueFor('font')}</span>{/if}
+		</label>
+		<NumberField
+			label="Size (pt)"
+			bind:value={block.size}
+			min={1}
+			max={500}
+			placeholder="fit"
+			error={issueFor('size')}
+		/>
+		{#if font?.weights}
+			<label>
+				Weight
+				<input
+					type="range"
+					min={font.weights[0]}
+					max={font.weights[1]}
+					step="50"
+					value={block.weight ?? 400}
+					oninput={(e) => (block.weight = parseInt(e.currentTarget.value))}
+				/>
+			</label>
+		{/if}
+		<label>
+			Align
+			<select bind:value={block.textAlign}>
+				<option value={undefined}>left</option>
+				<option value="center">center</option>
+				<option value="end">right</option>
+			</select>
+		</label>
+		<label title="How much of a dot must be covered to print it. Higher makes text heavier.">
+			Darkness
+			<input
+				type="range"
+				min="0.2"
+				max="0.8"
+				step="0.05"
+				value={1 - (block.ink ?? 0.5)}
+				oninput={(e) => (block.ink = 1 - parseFloat(e.currentTarget.value))}
+			/>
+		</label>
+		<label
+			class="check"
+			title="Size the text by its letters, without the room fonts keep for accents and descenders."
+		>
+			<input type="checkbox" bind:checked={block.tight} />
+			Fill height
+		</label>
+	{:else if block.type === 'qr'}
+		<label class="wide" class:invalid={!!issueFor('data')}>
+			Content
+			<input type="text" bind:value={block.data} />
+			{#if issueFor('data')}<span class="error">{issueFor('data')}</span>{/if}
+		</label>
+		<label>
+			Error correction
+			<select bind:value={block.ecc}>
+				<option value="L">low</option>
+				<option value={undefined}>medium</option>
+				<option value="Q">quartile</option>
+				<option value="H">high</option>
+			</select>
+		</label>
+		<NumberField
+			label="Module (dots)"
+			bind:value={block.module}
+			min={1}
+			max={64}
+			integer
+			placeholder="fit"
+			error={issueFor('module')}
+		/>
+	{:else if block.type === 'line'}
+		<label>
+			Direction
+			<select bind:value={block.direction}>
+				<option value={undefined}>across</option>
+				<option value="along">along</option>
+			</select>
+		</label>
+		<NumberField
+			label="Thickness (dots)"
+			bind:value={block.thickness}
+			min={1}
+			max={128}
+			integer
+			required
+		/>
+		{#if !free && block.direction !== 'along'}
+			<NumberField
+				label="Height (%)"
+				bind:value={block.extent}
+				min={0}
+				max={100}
+				scale={100}
+				placeholder="100"
+			/>
+		{/if}
+	{/if}
+
+	{#if free && block.type !== 'space'}
+		<NumberField
+			label="X (mm)"
+			bind:value={block.x}
+			step={0.5}
+			min={-1000}
+			max={1000}
+			placeholder="0"
+		/>
+		<NumberField
+			label="Y (mm)"
+			bind:value={block.y}
+			step={0.5}
+			min={-1000}
+			max={1000}
+			placeholder="0"
+		/>
+	{/if}
+	<NumberField
+		label="Width (mm)"
+		bind:value={block.width}
+		min={0}
+		max={1000}
+		step={0.5}
+		placeholder="auto"
+		error={issueFor('width')}
+	/>
+	{#if free && block.type !== 'space'}
+		<NumberField
+			label="Height (mm)"
+			bind:value={block.height}
+			min={0}
+			max={1000}
+			step={0.5}
+			placeholder="tape"
+			error={issueFor('height')}
+		/>
+	{/if}
+	{#if block.type !== 'space'}
+		<label>
+			Vertical
+			<select bind:value={block.align}>
+				<option value="start">top</option>
+				<option value={undefined}>middle</option>
+				<option value="end">bottom</option>
+			</select>
+		</label>
+	{/if}
+</div>
+
+<style>
+	.fields {
+		display: grid;
+		grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+		gap: 8px 12px;
+	}
+	.wide {
+		grid-column: 1 / -1;
+	}
+	p.error {
+		margin: 0;
+	}
+	.text {
+		display: flex;
+		gap: 8px;
+		align-items: end;
+	}
+	.text label {
+		flex: 1;
+	}
+	.symbols {
+		display: flex;
+		flex-wrap: wrap;
+		gap: 4px;
+		max-height: 12em;
+		overflow-y: auto;
+	}
+	.symbols button {
+		font-family: inherit;
+		font-size: 1.4rem;
+		line-height: 1;
+		min-width: 2.2em;
+		padding: 4px;
+		display: flex;
+		flex-direction: column;
+		align-items: center;
+		gap: 2px;
+	}
+	.symbols small {
+		font-family: system-ui, sans-serif;
+		font-size: 0.6rem;
+		color: var(--muted);
+	}
+</style>

@@ -1,0 +1,1 @@
+ALTER TABLE `tapes` ADD `length_mm` real;
