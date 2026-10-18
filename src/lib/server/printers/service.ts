@@ -1,3 +1,4 @@
+import { setTimeout as sleep } from 'node:timers/promises';
 import { randomUUID } from 'node:crypto';
 import { and, asc, eq, inArray, sql } from 'drizzle-orm';
 import type { Label } from '#lib/label/types.js';
@@ -52,7 +53,6 @@ interface Printer {
 
 const POLL_MS = 2000;
 const OFFLINE: PrinterStatus = { online: false, busy: false, errors: ['offline'], media: null };
-const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 export class PrinterService {
 	#printers = new Map<string, Printer>();

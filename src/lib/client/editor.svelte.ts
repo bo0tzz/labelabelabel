@@ -1,3 +1,4 @@
+import { nanoid } from 'nanoid';
 import { Debounced, StateHistory } from 'runed';
 import { DEFAULT_FONT } from '#lib/fonts.js';
 import { convertDrawing, emptyDrawing, resizeDrawing } from '#lib/label/drawing.js';
@@ -8,12 +9,8 @@ import type { RenderedLabel } from '#lib/render/render.js';
 
 const DRAFT_KEY = 'labelabelabel:draft';
 
-function newId() {
-	return Math.random().toString(36).slice(2, 10);
-}
-
 export function newBlock(type: BlockType): Block {
-	const id = newId();
+	const id = nanoid(8);
 	switch (type) {
 		case 'text':
 			return { id, type, text: 'Text', font: DEFAULT_FONT, tight: true };

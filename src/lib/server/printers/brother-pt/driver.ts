@@ -1,3 +1,4 @@
+import { setTimeout as sleep } from 'node:timers/promises';
 import { createBitmap, type Bitmap } from '#lib/bitmap.js';
 import { ptMediaId, type MediaGeometry } from '#lib/media.js';
 import { guessPartNumber, PT_MEDIA, type PtMedia } from '#lib/printers/brother-pt/media.js';
@@ -29,8 +30,6 @@ function loadedMedia(status: PtStatus): LoadedMedia | null {
 		partNumber: guessPartNumber(media, status.tapeColor, status.textColor)
 	};
 }
-
-const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 export class BrotherPtDriver implements PrinterDriver {
 	readonly model = 'Brother PT-P750W';

@@ -55,6 +55,7 @@
 		"harfbuzzjs": "1.6.3",
 		"image-q": "4.0.0",
 		"ipp-encoder": "5.0.0",
+		"nanoid": "^6.0.2",
 		"net-snmp": "3.29.2",
 		"qrcode": "1.5.4",
 		"runed": "0.37.1",
