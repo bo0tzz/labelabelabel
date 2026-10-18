@@ -1,3 +1,4 @@
+import { Debounced, StateHistory } from 'runed';
 import { DEFAULT_FONT } from '#lib/fonts.js';
 import { convertDrawing, emptyDrawing, resizeDrawing } from '#lib/label/drawing.js';
 import type { BitmapBlock, Block, BlockType, Label, MediaRef } from '#lib/label/types.js';
@@ -94,51 +95,43 @@ export class Editor {
 		this.saved = draft.saved;
 		this.selectedId = draft.doc.blocks[0]?.id ?? null;
 		this.pristineMedia = false;
-		this.#past = [];
-		this.#future = [];
-		this.#recorded = JSON.stringify(draft.doc);
-		this.canUndo = this.canRedo = false;
+		this.#settled.setImmediately(JSON.stringify(draft.doc));
+		this.#history.clear();
 	}
 
-	// Undo history holds serialized documents. `record` is called shortly after edits settle,
-	// so a burst of changes like a drag becomes one step.
-	#past: string[] = [];
-	#future: string[] = [];
-	#recorded = JSON.stringify(this.doc);
-	canUndo = $state(false);
-	canRedo = $state(false);
+	// History is kept of the document once edits settle, so a burst like a drag is one step.
+	#settled = new Debounced(() => JSON.stringify(this.doc), 400);
+	#history = new StateHistory(
+		() => this.#settled.current,
+		(json) => this.#restore(json),
+		{ capacity: 200 }
+	);
 
+	get canUndo() {
+		return this.#history.canUndo;
+	}
+
+	get canRedo() {
+		return this.#history.canRedo;
+	}
+
+	/** Takes the current state into the history now instead of after the pause. */
 	record() {
-		const now = JSON.stringify(this.doc);
-		if (now === this.#recorded) return;
-		this.#past.push(this.#recorded);
-		if (this.#past.length > 200) this.#past.shift();
-		this.#future = [];
-		this.#recorded = now;
-		this.canUndo = true;
-		this.canRedo = false;
+		return this.#settled.updateImmediately();
 	}
 
-	undo() {
-		this.record();
-		const previous = this.#past.pop();
-		if (previous === undefined) return;
-		this.#future.push(this.#recorded);
-		this.#restore(previous);
+	async undo() {
+		await this.record();
+		this.#history.undo();
 	}
 
 	redo() {
-		const next = this.#future.pop();
-		if (next === undefined) return;
-		this.#past.push(this.#recorded);
-		this.#restore(next);
+		this.#history.redo();
 	}
 
 	#restore(json: string) {
 		this.doc = JSON.parse(json);
-		this.#recorded = json;
-		this.canUndo = this.#past.length > 0;
-		this.canRedo = this.#future.length > 0;
+		this.#settled.setImmediately(json);
 		if (!this.doc.blocks.some((b) => b.id === this.selectedId)) {
 			this.selectedId = this.doc.blocks[0]?.id ?? null;
 		}
@@ -201,7 +194,7 @@ export class Editor {
 		const block = this.doc.blocks.find((b) => b.id === id);
 		if (block?.type !== 'bitmap') return;
 		block.data = data;
-		this.record();
+		void this.record();
 	}
 
 	remove(id: string) {

@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { useDebounce } from 'runed';
 	import { onMount, untrack } from 'svelte';
 	import { resolve } from '$app/paths';
 	import { page } from '$app/state';
@@ -168,6 +169,8 @@
 
 	$effect(() => ensureFontsFor(editor.doc));
 
+	const saveDraft = useDebounce(() => editor.saveDraft(), 300);
+
 	$effect(() => {
 		if (!ready || !editor.pristineMedia || !loaded) return;
 		const next = { id: loaded.id, tape: loaded.tape, text: loaded.text };
@@ -179,18 +182,10 @@
 	$effect(() => {
 		if (!ready) return;
 		void JSON.stringify(editor.doc);
-		const timer = setTimeout(() => editor.record(), 400);
-		return () => clearTimeout(timer);
-	});
-
-	$effect(() => {
-		if (!ready) return;
-		void JSON.stringify(editor.doc);
 		void JSON.stringify(editor.vars);
 		void editor.name;
 		void editor.saved;
-		const timer = setTimeout(() => editor.saveDraft(), 300);
-		return () => clearTimeout(timer);
+		untrack(() => saveDraft());
 	});
 
 	onMount(async () => {
