@@ -227,6 +227,26 @@ describe('renderLabel', () => {
 		expect(stacked.blocks[0].width).toBeGreaterThan(flat.blocks[0].width * 1.5);
 	});
 
+	it('takes emoji from the fallback font', () => {
+		const emojiFonts = new FontRegistry();
+		emojiFonts.add(
+			'sans',
+			readFileSync('fonts/atkinson-hyperlegible-next/AtkinsonHyperlegibleNext.ttf')
+		);
+		emojiFonts.add('emoji', readFileSync('fonts/noto-emoji/NotoEmoji.ttf'));
+		const doc = label([{ id: 't', type: 'text', text: 'Fragile 🍷', font: 'sans' }]);
+
+		const without = renderLabel(doc, media12, { fonts: emojiFonts });
+		expect(without.issues.map((i) => i.message)).toContain(
+			'Atkinson Hyperlegible Next Regular has no 🍷'
+		);
+
+		emojiFonts.fallbackId = 'emoji';
+		const withFallback = renderLabel(doc, media12, { fonts: emojiFonts });
+		expect(withFallback.issues).toEqual([]);
+		expect(ink(withFallback.bitmap)).toBeGreaterThan(ink(without.bitmap));
+	});
+
 	it('warns when lines get too small to read', () => {
 		const text = Array.from({ length: 20 }, (_, i) => `line ${i}`).join('\n');
 		const result = renderLabel(label([{ id: 't', type: 'text', text, font: 'sans' }]), media12, {

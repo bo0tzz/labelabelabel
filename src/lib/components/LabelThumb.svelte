@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { ensureFont, fontRegistry, fontState } from '#lib/client/fonts.svelte.js';
+	import { ensureFontsFor, fontRegistry, fontState } from '#lib/client/fonts.svelte.js';
 	import type { Label } from '#lib/label/types.js';
 	import { getMedia } from '#lib/media.js';
 	import { renderLabel } from '#lib/render/render.js';
@@ -13,11 +13,7 @@
 
 	const media = $derived(getMedia(doc.media.id) ?? getMedia('tze-12')!);
 
-	$effect(() => {
-		for (const block of doc.blocks) {
-			if (block.type === 'text') ensureFont(block.font).catch(() => {});
-		}
-	});
+	$effect(() => ensureFontsFor(doc));
 
 	const rendered = $derived.by(() => {
 		void fontState.version;

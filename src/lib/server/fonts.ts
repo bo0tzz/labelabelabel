@@ -70,7 +70,10 @@ function register(id: string, path: string, source: FontEntry['source'], name?: 
  * Optional `fonts.json` next to the bundled fonts: display names by font id, and `outline` to
  * pair a font with the font holding its outlined icons.
  */
-function bundledManifest(): Record<string, { name?: string; outline?: string }> {
+function bundledManifest(): Record<
+	string,
+	{ name?: string; outline?: string; fallback?: boolean }
+> {
 	try {
 		return JSON.parse(readFileSync(join(FONTS_DIR, 'fonts.json'), 'utf8'));
 	} catch {
@@ -83,6 +86,12 @@ export function loadFonts() {
 	for (const path of scan(FONTS_DIR)) {
 		const id = fontId(path);
 		register(id, path, 'bundled', manifest[id]?.name);
+	}
+	for (const [id, { fallback }] of Object.entries(manifest)) {
+		const entry = catalog.get(id)?.entry;
+		if (!fallback || !entry) continue;
+		entry.fallback = true;
+		registry.fallbackId = id;
 	}
 	for (const [id, { outline }] of Object.entries(manifest)) {
 		const filled = catalog.get(id)?.entry;
@@ -104,8 +113,9 @@ export function fontSymbols(id: string): FontSymbol[] {
 	return catalog.get(id)?.symbols ?? [];
 }
 
+/** `fallback` names whichever font is the fallback, so browsers need not know its id. */
 export function fontPath(id: string): string | undefined {
-	return catalog.get(id)?.path;
+	return catalog.get(id === 'fallback' ? (registry.fallbackId ?? '') : id)?.path;
 }
 
 export function addFont(fileName: string, data: Uint8Array): FontEntry {

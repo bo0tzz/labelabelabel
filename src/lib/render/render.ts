@@ -89,14 +89,88 @@ interface TextLayout {
 	height: number;
 }
 
+const graphemes = new Intl.Segmenter(undefined, { granularity: 'grapheme' });
+const EMOJI_PRESENTATION = /\p{Extended_Pictographic}|\p{Regional_Indicator}|\uFE0F/u;
+
+/**
+ * Shapes a line, taking characters the font lacks (typically emoji) from the fallback font.
+ * Fallback glyph positions are converted to the main font's units.
+ */
+function shapeLine(
+	text: string,
+	font: LoadedFont,
+	fallback: LoadedFont | undefined,
+	variant: Variant
+): ShapedRun {
+	if (!fallback || fallback === font) return font.shape(text, variant);
+	// Whole grapheme clusters go to one font, so emoji sequences stay together. Emoji go to the
+	// fallback when it has them, even if the main font has a plain text version.
+	const segments: { text: string; font: LoadedFont }[] = [];
+	for (const { segment } of graphemes.segment(text)) {
+		const base = segment.codePointAt(0)!;
+		const wantsFallback = !font.hasChar(base) || EMOJI_PRESENTATION.test(segment);
+		const useFont = wantsFallback && fallback.hasChar(base) ? fallback : font;
+		const last = segments.at(-1);
+		if (last?.font === useFont) last.text += segment;
+		else segments.push({ text: segment, font: useFont });
+	}
+	if (segments.every((seg) => seg.font === font)) return font.shape(text, variant);
+
+	const glyphs: ShapedGlyph[] = [];
+	const missing = new Set<string>();
+	let advance = 0;
+	for (const segment of segments) {
+		const run = segment.font.shape(segment.text, variant);
+		const fromFallback = segment.font !== font;
+		const ratio = fromFallback ? font.upem / segment.font.upem : 1;
+		for (const g of run.glyphs) {
+			glyphs.push({
+				gid: g.gid,
+				x: advance + g.x * ratio,
+				y: g.y * ratio,
+				...(fromFallback ? { font: segment.font, ratio } : {})
+			});
+		}
+		for (const m of run.missing) if (!font.hasChar(m.codePointAt(0)!)) missing.add(m);
+		advance += run.advance * ratio;
+	}
+	return { glyphs, advance, missing: [...missing] };
+}
+
+/** Ink box of a glyph in the main font's units, y up. */
+function glyphExtents(g: ShapedGlyph, font: LoadedFont, variant: Variant) {
+	const e = (g.font ?? font).extents(g.gid, variant);
+	if (!e) return undefined;
+	const r = g.ratio ?? 1;
+	return {
+		xBearing: e.xBearing * r,
+		yBearing: e.yBearing * r,
+		width: e.width * r,
+		height: e.height * r
+	};
+}
+
+/** Highest and lowest ink of a shaped run relative to the baseline, in font units. */
+function runInk(run: ShapedRun, font: LoadedFont, variant: Variant) {
+	let top = -Infinity;
+	let bottom = Infinity;
+	for (const g of run.glyphs) {
+		const e = glyphExtents(g, font, variant);
+		if (!e || e.height === 0) continue;
+		top = Math.max(top, g.y + e.yBearing);
+		bottom = Math.min(bottom, g.y + e.yBearing + e.height);
+	}
+	return top > bottom ? { top, bottom } : undefined;
+}
+
 /** Lines one under the other, as text is normally written. */
 function layoutLines(runs: ShapedRun[], font: LoadedFont, block: TextBlock): TextLayout {
 	const lineUnits = (font.ascender - font.descender) * (block.lineHeight ?? 1);
 	let above = font.ascender;
 	let below = -font.descender;
 	if (block.tight) {
-		const first = font.inkExtents(runs[0], variantOf(block));
-		const last = font.inkExtents(runs[runs.length - 1], variantOf(block));
+		const first = runInk(runs[0], font, variantOf(block));
+		const last = runInk(runs[runs.length - 1], font, variantOf(block));
 		if (first && last) {
 			above = first.top;
 			below = -last.bottom;
@@ -122,7 +196,7 @@ function layoutStacked(runs: ShapedRun[], font: LoadedFont, block: TextBlock): T
 	const spacing = block.lineHeight ?? 1;
 	const gap = font.upem * 0.12 * spacing;
 	const space = font.upem * 0.4 * spacing;
-	const extents = runs.map((run) => run.glyphs.map((g) => font.extents(g.gid, variantOf(block))));
+	const extents = runs.map((run) => run.glyphs.map((g) => glyphExtents(g, font, variantOf(block))));
 	const column = Math.max(0, ...extents.flat().map((e) => e?.width ?? 0));
 	const columnGap = column * 0.3;
 	const placements: Placement[] = [];
@@ -138,7 +212,7 @@ function layoutStacked(runs: ShapedRun[], font: LoadedFont, block: TextBlock): T
 			placements.push({
 				u: c * (column + columnGap) + (column - e.width) / 2 - e.xBearing,
 				baseline: cursor + e.yBearing,
-				glyphs: [{ gid: g.gid, x: 0, y: 0 }]
+				glyphs: [{ ...g, x: 0, y: 0 }]
 			});
 			cursor += -e.height + gap;
 			height = Math.max(height, cursor - gap);
@@ -164,7 +238,7 @@ function renderText(block: TextBlock, box: Box, ctx: Context): Bitmap {
 		return createBitmap(0, box.height);
 	}
 	const lines = fillTemplate(block.text, ctx.vars).split('\n');
-	const runs = lines.map((line) => font.shape(line, variantOf(block)));
+	const runs = lines.map((line) => shapeLine(line, font, ctx.fonts.fallback, variantOf(block)));
 	const missing = [...new Set(runs.flatMap((r) => r.missing))];
 	if (missing.length) issue(`${font.name} has no ${missing.join(' ')}`, 'text');
 
@@ -223,15 +297,17 @@ function renderText(block: TextBlock, box: Box, ctx: Context): Bitmap {
 		for (const g of placement.glyphs) {
 			const u = originU + g.x * s;
 			const v = baseline - g.y * s;
+			// Outline units per dot differ for glyphs from a fallback font.
+			const gs = s * (g.ratio ?? 1);
 			flattener.transform =
 				rotation === 90
-					? { a: 0, b: s, c: k * s, d: 0, e: k * (T - v), f: oy + u }
+					? { a: 0, b: gs, c: k * gs, d: 0, e: k * (T - v), f: oy + u }
 					: rotation === 180
-						? { a: -k * s, b: 0, c: 0, d: s, e: k * (W - u), f: oy + T - v }
+						? { a: -k * gs, b: 0, c: 0, d: gs, e: k * (W - u), f: oy + T - v }
 						: rotation === 270
-							? { a: 0, b: -s, c: -k * s, d: 0, e: k * v, f: oy + W - u }
-							: { a: k * s, b: 0, c: 0, d: -s, e: k * u, f: oy + v };
-			font.draw(g.gid, variant, flattener);
+							? { a: 0, b: -gs, c: -k * gs, d: 0, e: k * v, f: oy + W - u }
+							: { a: k * gs, b: 0, c: 0, d: -gs, e: k * u, f: oy + v };
+			(g.font ?? font).draw(g.gid, variant, flattener);
 		}
 	}
 

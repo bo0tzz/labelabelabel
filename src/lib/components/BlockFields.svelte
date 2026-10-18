@@ -100,7 +100,7 @@
 				value={font?.pair?.filled ?? block.font}
 				onchange={(e) => block.type === 'text' && (block.font = e.currentTarget.value)}
 			>
-				{#each fonts.filter((f) => !f.hidden) as f (f.id)}
+				{#each fonts.filter((f) => !f.hidden && !f.fallback) as f (f.id)}
 					<option value={f.id}>{f.name}</option>
 				{/each}
 				{#if !font}

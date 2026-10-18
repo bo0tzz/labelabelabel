@@ -19,9 +19,13 @@ export interface Variant {
 
 export interface ShapedGlyph {
 	gid: number;
-	/** Pen position in font units. */
+	/** Pen position in font units of the run's main font. */
 	x: number;
 	y: number;
+	/** Set when the glyph comes from a fallback font. */
+	font?: LoadedFont;
+	/** The fallback font's units per main font unit. */
+	ratio?: number;
 }
 
 export interface ShapedRun {
@@ -30,6 +34,8 @@ export interface ShapedRun {
 	/** Characters the font has no glyph for. */
 	missing: string[];
 }
+
+const PRIVATE_USE = /\p{Co}/u;
 
 export class LoadedFont {
 	readonly face: hb.Face;
@@ -107,6 +113,10 @@ export class LoadedFont {
 		return { glyphs, advance: x, missing: [...missing] };
 	}
 
+	hasChar(codePoint: number): boolean {
+		return !!this.font().glyph(codePoint);
+	}
+
 	/** Ink box of a glyph in font units, y up; undefined for glyphs without ink. */
 	extents(gid: number, variant?: Variant) {
 		return this.font(variant).glyphExtents(gid);
@@ -149,7 +159,7 @@ export class LoadedFont {
 		const seen = new Set<number>();
 		const symbols: string[] = [];
 		for (const u of [...this.face.collectUnicodes()].sort((a, b) => a - b)) {
-			if (!((u >= 0xe000 && u <= 0xf8fe) || (u >= 0xf0000 && u <= 0x10fffd))) continue;
+			if (!PRIVATE_USE.test(String.fromCodePoint(u))) continue;
 			const gid = font.glyph(u);
 			if (!gid || seen.has(gid)) continue;
 			seen.add(gid);
@@ -199,24 +209,16 @@ export class LoadedFont {
 		for (const list of names.values()) list.sort((a, b) => a.length - b.length);
 		return names;
 	}
-
-	/** Highest and lowest ink of a shaped run, in font units relative to the baseline. */
-	inkExtents(run: ShapedRun, variant?: Variant): { top: number; bottom: number } | undefined {
-		const font = this.font(variant);
-		let top = -Infinity;
-		let bottom = Infinity;
-		for (const g of run.glyphs) {
-			const e = font.glyphExtents(g.gid);
-			if (!e || e.height === 0) continue;
-			top = Math.max(top, g.y + e.yBearing);
-			bottom = Math.min(bottom, g.y + e.yBearing + e.height);
-		}
-		return top > bottom ? { top, bottom } : undefined;
-	}
 }
 
 export class FontRegistry {
 	#fonts = new Map<string, LoadedFont>();
+	/** Font used for characters the chosen font lacks, such as emoji. */
+	fallbackId: string | undefined;
+
+	get fallback(): LoadedFont | undefined {
+		return this.fallbackId ? this.#fonts.get(this.fallbackId) : undefined;
+	}
 
 	add(id: string, data: ArrayBuffer | Uint8Array): LoadedFont {
 		const font = new LoadedFont(id, data);

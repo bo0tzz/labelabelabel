@@ -17,6 +17,10 @@
 	"material-symbols-outlined": {
 		"name": "Material Symbols"
 	},
+	"noto-emoji": {
+		"name": "Noto Emoji",
+		"fallback": true
+	},
 	"schraubenkiste": {
 		"name": "Schraubenkiste",
 		"outline": "schraubenkiste2"

@@ -74,7 +74,7 @@ export class Editor {
 			if (b.type !== 'text') continue;
 			// Private use characters are icons that would show as boxes outside the label.
 			const line = b.text
-				.replace(/[\ue000-\uf8ff\u{f0000}-\u{10ffff}]/gu, '')
+				.replace(/\p{Co}/gu, '')
 				.trim()
 				.split('\n')[0];
 			if (line) return line.slice(0, 60);

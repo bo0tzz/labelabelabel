@@ -12,6 +12,8 @@ export interface FontEntry {
 	pair?: { filled: string; outline: string };
 	/** The outlined half of a pair; it is picked through its filled font. */
 	hidden?: boolean;
+	/** Used for characters other fonts lack, like emoji. */
+	fallback?: boolean;
 	/** Number of symbol glyphs; fetch them with `fontSymbols`. */
 	symbols?: number;
 }

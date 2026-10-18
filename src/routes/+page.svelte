@@ -8,7 +8,7 @@
 	import { printerState } from '#lib/api/printers.remote.js';
 	import { listTapes } from '#lib/api/tapes.remote.js';
 	import { Editor } from '#lib/client/editor.svelte.js';
-	import { cssFamily, ensureFont, fontRegistry, fontState } from '#lib/client/fonts.svelte.js';
+	import { cssFamily, ensureFontsFor, fontRegistry, fontState } from '#lib/client/fonts.svelte.js';
 	import { tapeLabel } from '#lib/colors.js';
 	import BlockFields from '#lib/components/BlockFields.svelte';
 	import NumberField from '#lib/components/NumberField.svelte';
@@ -166,11 +166,7 @@
 	});
 	const hint = $derived(outcome.hint);
 
-	$effect(() => {
-		for (const block of editor.doc.blocks) {
-			if (block.type === 'text') ensureFont(block.font).catch(() => {});
-		}
-	});
+	$effect(() => ensureFontsFor(editor.doc));
 
 	$effect(() => {
 		if (!ready || !editor.pristineMedia || !loaded) return;

@@ -1,3 +1,4 @@
+import type { Label } from '#lib/label/types.js';
 import { FontRegistry } from '#lib/render/fonts.js';
 
 export const fontRegistry = new FontRegistry();
@@ -40,4 +41,18 @@ export function ensureFont(id: string): Promise<void> {
 		pending.set(id, promise);
 	}
 	return promise;
+}
+
+const EMOJI = /\p{Extended_Pictographic}|\p{Regional_Indicator}/u;
+
+/** Loads the fonts a label needs, including the fallback font when it has emoji. */
+export function ensureFontsFor(doc: Label) {
+	for (const block of doc.blocks) {
+		if (block.type !== 'text') continue;
+		ensureFont(block.font).catch(() => {});
+		if (EMOJI.test(block.text)) {
+			fontRegistry.fallbackId = 'fallback';
+			ensureFont('fallback').catch(() => {});
+		}
+	}
 }
