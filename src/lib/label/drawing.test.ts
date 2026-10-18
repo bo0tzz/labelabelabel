@@ -1,7 +1,13 @@
 import { describe, expect, it } from 'vitest';
 import { createBitmap, setPixel } from '#lib/bitmap.js';
-import { decodeBitmapData, encodeBitmapData } from '#lib/render/render.js';
-import { convertDrawing, emptyDrawing, invertDrawing, resizeDrawing } from './drawing.js';
+import {
+	convertDrawing,
+	decodeBitmapData,
+	emptyDrawing,
+	encodeBitmapData,
+	invertDrawing,
+	resizeDrawing
+} from './drawing.js';
 import type { BitmapBlock } from './types.js';
 
 function drawing(w: number, h: number, dots: [number, number][]): BitmapBlock {
@@ -59,5 +65,13 @@ describe('drawings', () => {
 		const block = drawing(2, 1, [[0, 0]]);
 		invertDrawing(block);
 		expect(dots(block)).toEqual([[1, 0]]);
+	});
+
+	it('round-trips bitmap block data', () => {
+		const bitmap = createBitmap(11, 3);
+		bitmap.data[0] = 1;
+		bitmap.data[10] = 1;
+		bitmap.data[32] = 1;
+		expect(decodeBitmapData(encodeBitmapData(bitmap), 11, 3).data).toEqual(bitmap.data);
 	});
 });

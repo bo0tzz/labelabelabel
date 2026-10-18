@@ -1,11 +1,10 @@
 import { readFileSync } from 'node:fs';
 import { beforeAll, describe, expect, it } from 'vitest';
-import { createBitmap } from '#lib/bitmap.js';
 import { initServerRaster } from '#lib/server/raster.js';
 import type { Label } from '#lib/label/types.js';
 import { getMedia } from '#lib/media.js';
 import { FontRegistry } from './fonts.js';
-import { decodeBitmapData, encodeBitmapData, renderLabel } from './render.js';
+import { renderLabel } from './render.js';
 
 const fonts = new FontRegistry();
 fonts.add('sans', readFileSync('fonts/atkinson-hyperlegible-next/AtkinsonHyperlegibleNext.ttf'));
@@ -236,13 +235,5 @@ describe('renderLabel', () => {
 			fonts
 		});
 		expect(result.issues.map((i) => i.message)).toContain('text is too small to print legibly');
-	});
-
-	it('round-trips bitmap block data', () => {
-		const bitmap = createBitmap(11, 3);
-		bitmap.data[0] = 1;
-		bitmap.data[10] = 1;
-		bitmap.data[32] = 1;
-		expect(decodeBitmapData(encodeBitmapData(bitmap), 11, 3).data).toEqual(bitmap.data);
 	});
 });

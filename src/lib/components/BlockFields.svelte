@@ -3,8 +3,13 @@
 	import type { FontEntry } from '#lib/fonts.js';
 	import type { Block } from '#lib/label/types.js';
 	import { imageToBitmap } from '#lib/client/image.js';
-	import { emptyDrawing, invertDrawing, resizeDrawing } from '#lib/label/drawing.js';
-	import { encodeBitmapData, type RenderIssue } from '#lib/render/render.js';
+	import {
+		emptyDrawing,
+		encodeBitmapData,
+		invertDrawing,
+		resizeDrawing
+	} from '#lib/label/drawing.js';
+	import type { RenderIssue } from '#lib/render/render.js';
 	import NumberField from './NumberField.svelte';
 	import SymbolPicker from './SymbolPicker.svelte';
 

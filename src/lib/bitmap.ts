@@ -42,3 +42,36 @@ export function blit(target: Bitmap, source: Bitmap, dx: number, dy: number) {
 		}
 	}
 }
+
+/** Columns `left` to `right` of an image. */
+export function crop(image: Bitmap, left: number, right: number): Bitmap {
+	const out = createBitmap(right - left, image.height);
+	for (let y = 0; y < image.height; y++) {
+		out.data.set(
+			image.data.subarray(y * image.width + left, y * image.width + right),
+			y * out.width
+		);
+	}
+	return out;
+}
+
+/** Scales by nearest neighbour; when shrinking, a target pixel gets ink if any source pixel had it. */
+export function resample(source: Bitmap, fx: number, fy: number): Bitmap {
+	const w = Math.max(1, Math.round(source.width * fx));
+	const h = Math.max(1, Math.round(source.height * fy));
+	const out = createBitmap(w, h);
+	for (let y = 0; y < h; y++) {
+		const sy0 = Math.floor(y / fy);
+		const sy1 = Math.max(sy0 + 1, Math.floor((y + 1) / fy));
+		for (let x = 0; x < w; x++) {
+			const sx0 = Math.floor(x / fx);
+			const sx1 = Math.max(sx0 + 1, Math.floor((x + 1) / fx));
+			let on = 0;
+			for (let sy = sy0; sy < sy1 && !on; sy++) {
+				for (let sx = sx0; sx < sx1 && !on; sx++) on = source.data[sy * source.width + sx];
+			}
+			out.data[y * w + x] = on;
+		}
+	}
+	return out;
+}

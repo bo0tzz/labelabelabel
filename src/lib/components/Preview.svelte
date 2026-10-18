@@ -2,12 +2,8 @@
 	import { tapeColor, textColor } from '#lib/colors.js';
 	import { mmToDots, type MediaGeometry } from '#lib/media.js';
 	import type { BitmapBlock } from '#lib/label/types.js';
-	import {
-		decodeBitmapData,
-		encodeBitmapData,
-		type BlockLayout,
-		type RenderedLabel
-	} from '#lib/render/render.js';
+	import { decodeBitmapData, encodeBitmapData } from '#lib/label/drawing.js';
+	import type { BlockLayout, RenderedLabel } from '#lib/render/render.js';
 
 	/** A block's box in dots: x along the tape, y across it. */
 	export type Box = Pick<BlockLayout, 'x' | 'y' | 'width' | 'height'>;
@@ -304,7 +300,6 @@
 		ctx: CanvasRenderingContext2D;
 	} | null = null;
 
-	/** Pointer position in the drawing's pixels. */
 	/** Screen position to CSS pixels in the (possibly turned) tape element. */
 	function toLocal(clientX: number, clientY: number): [number, number] {
 		const rect = frame!.getBoundingClientRect();
