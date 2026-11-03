@@ -58,7 +58,7 @@
 		"nanoid": "6.0.2",
 		"net-snmp": "3.29.2",
 		"qrcode": "1.5.4",
-		"runed": "0.37.1",
+		"runed": "0.38.0",
 		"uint8array-extras": "1.6.0",
 		"valibot": "1.5.0"
 	}
